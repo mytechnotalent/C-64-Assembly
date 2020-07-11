@@ -14,8 +14,13 @@ make CPU=6502 SYNTAX=oldstyle
 cd ..
 hdiutil attach vice-sdl2-3.4-r37694.dmg
 cp -av /Volumes/vice-sdl2-3.4-r37694/vice-sdl2-3.4-r37694/ .
-chmod +x run.sh
+chmod +x compile.sh
 
+```
+
+## Compiling
+```bash
+./compile.sh
 ```
 
 ## Running VICE
