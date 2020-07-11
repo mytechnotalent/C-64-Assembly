@@ -1,0 +1,2768 @@
+F00:0001       ;Mode2Color equ 1	;For C64,Apple 2 & Atari
+F00:0002       ;ScrWid256 equ 1
+F00:0003       
+F00:0004       	include "./SrcAll/V1_Header.asm"
+F01:0001       	ifdef BuildC64
+F01:0002       		include "./SrcC64/V1_Header.asm"
+F02:0001       	ifdef  BuildC64_CRT
+F02:0002       ; cartridge code appears at $8000
+F02:0003       ;*=$8000
+F02:0004       ;        byte    $09, $80, $25, $80, $c3, $c2, $cd, $38, $30, $8e, $16, $d0, $20, $a3, $fd, $20
+F02:0005               ;byte    $50, $fd, $20, $15, $fd, $20, $5b, $ff, $58, $ea, $ea, $ea, $ea, $ea, $ea, $ea
+F02:0006               ;byte    $ea, $ea, $ea, $ea, $ea
+F02:0007       ;*=$8025
+F02:0008       
+F02:0009       
+F02:0010       
+F02:0011          ;******************************
+F02:0012          ; CRT Header ($40)
+F02:0013          ;******************************
+F02:0014       
+F02:0015          ; CRT format cartridge header
+F02:0016          org $7FB0						  
+F02:0017          byte "C64 CARTRIDGE   "	   		; Cartridge Signature
+F02:0018          byte $00,$00,$00,$40			   	; Header length $00000040
+F02:0019          byte $01,$00					    ; Version (1.00)
+F02:0020          byte $00,$00 				 	; Cartridge Type... $0000 = normal
+F02:0021          byte $00						   	; Exrom Status... $00 = none
+F02:0022          byte $00 					   	; Game Line Status... $00 = none
+F02:0023          byte $00,$00,$00,$00,$00,$00    	; Unused
+F02:0024          ;     12345678901234567890123456789012
+F02:0025          byte "CYNTHCART                       "	; 32 byte cartridge name
+F02:0026       
+F02:0027          ;******************************
+F02:0028          ; Chip Packet Header ($10)
+F02:0029          ;******************************
+F02:0030       
+F02:0031          org $7FF0
+F02:0032          byte "CHIP"
+F02:0033          byte $00, $00, $40, $10	; Chip Packet Length $00002010
+F02:0034          byte $00, $00			; Chip type 0 = ROM, 1 = RAM
+F02:0035          byte $00, $00			; Bank Location $0000 = normal cartridge
+F02:0036          byte $80, $00			; Load location $8000
+F02:0037          byte $40, $00			; Rom image size $2000
+F02:0038       
+F02:0039          org $8000				;Start of ROM
+F02:0040          
+F02:0041          word Startup; Startup Vector
+F02:0042          word Startup; Restore Vector
+F02:0043          byte $C3, $C2, $CD, $38, $30	
+F02:0044       
+F02:0045       Startup:
+F02:0046          sei
+F02:0047       
+F02:0048          jsr $FF84		;IOINIT. Initialize CIA's, SID volume; setup memory configuration; set and start interrupt timer.
+F02:0049          jsr $FF87		;RAMTAS. Clear memory addresses $0002-$0101 and $0200-$03FF; run memory test and set start 
+F02:0050       						;and end address of BASIC work area accordingly; set screen memory to $0400 and datasette buffer to $033C.
+F02:0051          jsr $FF8A		;RESTOR. Fill vector table at memory addresses $0314-$0333 with default values.
+F02:0052          jsr $FF81		;SCINIT. Initialize VIC; restore default input/output to keyboard/screen; clear screen; set PAL/NTSC switc
+F02:0053       
+F02:0054          cli
+F02:0055       
+F02:0056       	else
+F02:0057       *=$0801
+F02:0058       
+F02:0059               ;BYTE    $0E, $08, $0A, $00, $9E, $20, $28,  $34, $30, $39, $36, $29, $00, $00, $00 ;Start at $1000
+F02:0060       ;		BYTE    $0E, $08, $0A, $00, $9E, $20, $28,  $32, $33, $30, $34, $29, $00, $00, $00  ;Start at $0900
+F02:0061               BYTE    $0E, $08, $0A, $00, $9E, $20, $28,  $32, $30, $36, $34, $29, $00, $00, $00  ;Start at $0810
+               S01:00000801:  0E
+               S01:00000802:  08
+               S01:00000803:  0A
+               S01:00000804:  00
+               S01:00000805:  9E
+               S01:00000806:  20
+               S01:00000807:  28
+               S01:00000808:  32
+               S01:00000809:  30
+               S01:0000080A:  36
+               S01:0000080B:  34
+               S01:0000080C:  29
+               S01:0000080D:  00
+               S01:0000080E:  00
+               S01:0000080F:  00
+F02:0062       
+F02:0063       *=$0810
+F02:0064       	endif
+F02:0065       
+F02:0066       z_Regs 		equ $20			;Fake Registers
+F02:0067       Cursor_X 	equ $40
+F02:0068       Cursor_Y 	equ Cursor_X+1
+F02:0069       SPpage 		equ $0100
+F01:0003       	endif
+F01:0004       	
+F01:0005       
+F00:0005       	include "./SrcAll/BasicMacros.asm"
+F03:0001       	macro rlca
+F03:0005       
+F03:0006       	macro rrca
+F03:0011       
+F03:0012       	macro PushAll
+F03:0020       
+F03:0021       	macro PullAll
+F03:0029       
+F03:0030       	macro PushPair,ra	;Push a pair onto the stack (eg PushPair z_HL)
+F03:0035       
+F03:0036       	
+F03:0037       	macro PullPair,ra	;Pull a pair onto the stack (eg PullPair z_HL)
+F03:0042       
+F03:0043       	macro PushPairSafe,ra	;Push a pair onto the stack (eg PushPair z_HL)
+F03:0050       
+F03:0051       	
+F03:0052       	macro PullPairSafe,ra	;Pull a pair onto the stack (eg PullPair z_HL)
+F03:0059       
+F03:0060       	macro LoadPair,zr,val
+F03:0065       
+F03:0066       	macro LoadOne,zr,val
+F03:0069       
+F03:0070       	macro AddPair,zr,val
+F03:0079       
+F03:0080       	macro add,val
+F03:0083       
+F03:0084       	macro sub,val
+F03:0087       
+F00:0006       	
+F00:0007       ;FourColor equ 1	
+F00:0008       
+F00:0009       
+F00:0010       	SEI			;Stop interrupts
+               S02:00000810:  78
+F00:0011       	jsr ScreenInit
+               S02:00000811:  20 1A 0F
+F00:0012       
+F00:0013       	
+F00:0014       	ifdef BuildVIC
+F00:0015       		lda #0
+F00:0016       		jsr ClsAlt
+F00:0017       	else
+F00:0018       		jsr Cls
+               S02:00000814:  20 1C 10
+F00:0019       	endif
+F00:0020       	lda #'a'
+               S02:00000817:  A9 61
+F00:0021       	jsr printchar
+               S02:00000819:  20 39 0F
+F00:0022       
+F00:0023       	;jsr NewLine
+F00:0024       	;lda #4
+F00:0025       	;jsr Monitor	
+F00:0026       	;sec
+F00:0027       	;adc #3
+F00:0028       	jsr Monitor	
+               S02:0000081C:  20 28 09
+F00:0029       
+F00:0030       
+F00:0031       	lda #<MyText
+               S02:0000081F:  A9 BB
+F00:0032       	sta z_L
+               S02:00000821:  85 20
+F00:0033       	lda #>MyText
+               S02:00000823:  A9 0A
+F00:0034       	sta z_H
+               S02:00000825:  85 21
+F00:0035       	jsr PrintString
+               S02:00000827:  20 D2 09
+F00:0036       
+F00:0037       	
+F00:0038       	
+F00:0039       	ldx #5
+               S02:0000082A:  A2 05
+F00:0040       	ldy #5
+               S02:0000082C:  A0 05
+F00:0041       	
+F00:0042       	ifdef BuildAP2
+F00:0043       bmpwidth equ 8
+F00:0044       	else
+F00:0045       	ifdef BuildLNX
+F00:0046       bmpwidth equ 24
+F00:0047       	else
+F00:0048       	ifdef BuildC64
+F00:0049       bmpwidth equ 3
+F00:0050       	else
+F00:0051       bmpwidth equ 6	
+F00:0052       	endif
+F00:0053       
+F00:0054       	endif
+F00:0055       	endif
+F00:0056       	
+F00:0057       	
+F00:0058       	
+F00:0059       	
+F00:0060       ;BMPNORMAL equ 1
+F00:0061       	ifdef BuildLNX
+F00:0062       BMPNORMALQ equ 1
+F00:0063       	endif
+F00:0064       	ifdef BuildA52
+F00:0065       BMPNORMALQ equ 1
+F00:0066       	endif
+F00:0067       	ifdef BuildA80
+F00:0068       BMPNORMALQ equ 1
+F00:0069       	endif
+F00:0070       	ifdef BuildAP2
+F00:0071       BMPNORMAL equ 1
+F00:0072       	endif
+F00:0073       	
+F00:0074       	
+F00:0075       	ifdef BuildBBC
+F00:0076       BMPBBC equ 1		;also C64- do 8 lines in groups before next x tile
+F00:0077       	endif
+F00:0078       	ifdef BuildC64
+F00:0079       BMPBBC equ 1		;also C64- do 8 lines in groups before next x tile
+F00:0080       	endif
+F00:0081       	
+F00:0082       	
+F00:0083       	ifdef BuildNES
+F00:0084       BMPTILE equ 1
+F00:0085       	endif
+F00:0086       	ifdef BuildPCE
+F00:0087       BMPTILE equ 1
+F00:0088       	endif
+F00:0089       	ifdef BuildSNS
+F00:0090       BMPTILE equ 1
+F00:0091       	endif
+F00:0092       	ifdef BuildVIC
+F00:0093       BMPTILE equ 1
+F00:0094       	endif
+F00:0095       	
+F00:0096       	
+F00:0097       	
+F00:0098       	lda #<Bitmap
+               S02:0000082E:  A9 DA
+F00:0099       	sta z_L
+               S02:00000830:  85 20
+F00:0100       	lda #>Bitmap
+               S02:00000832:  A9 0A
+F00:0101       	sta z_H
+               S02:00000834:  85 21
+F00:0102       
+F00:0103       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0104       ;											Tile Type
+F00:0105       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0106       	
+F00:0107       	ifdef BMPTILE
+F00:0108       	
+F00:0109       	lda #<(BitmapEnd-Bitmap)
+F00:0110       	sta z_C
+F00:0111       	lda #>(BitmapEnd-Bitmap)
+F00:0112       	sta z_B
+F00:0113       	
+F00:0114       	ifdef BuildPCE
+F00:0115       		lda #<$1800
+F00:0116       		sta z_E
+F00:0117       		lda #>$1800
+F00:0118       		sta z_D
+F00:0119       	endif
+F00:0120       	ifdef BuildNES
+F00:0121       		lda #<$0800
+F00:0122       		sta z_E
+F00:0123       		lda #>$0800
+F00:0124       		sta z_D
+F00:0125       	endif
+F00:0126       		ifdef BuildSNS
+F00:0127       		lda #<$1800
+F00:0128       		sta z_E
+F00:0129       		lda #>$1800
+F00:0130       		sta z_D
+F00:0131       	endif
+F00:0132       	jsr DefineTiles
+F00:0133       	
+F00:0134       	
+F00:0135       	lda #3	;SX
+F00:0136       	sta z_b
+F00:0137       	lda #3	;SY
+F00:0138       	sta z_c
+F00:0139       	
+F00:0140       	ldx #6	;WID
+F00:0141       	ldy #6	;HEI
+F00:0142       	
+F00:0143       	ifdef BuildVIC
+F00:0144       	lda #1		;TileStart
+F00:0145       	else
+F00:0146       	lda #128	;TileStart
+F00:0147       	endif
+F00:0148       	jsr FillAreaWithTiles
+F00:0149       	
+F00:0150       	
+F00:0151       	endif
+F00:0152       	
+F00:0153       	
+F00:0154       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0155       ;											BBC Type - 8 bytes down - then across
+F00:0156       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0157       	ifdef BMPBBC
+F00:0158       	
+F00:0159       	lda #0
+               S02:00000836:  A9 00
+F00:0160       NexBitmapNextStrip:
+F00:0161       	pushall
+F04:0001       		pha
+               S02:00000838:  48
+F04:0002       		
+F04:0003       		txa
+               S02:00000839:  8A
+F04:0004       		pha
+               S02:0000083A:  48
+F04:0005       		
+F04:0006       		tya 
+               S02:0000083B:  98
+F04:0007       		pha
+               S02:0000083C:  48
+F00:0162       		jsr GetScreenPos			;Get screen pos from XY into Z_DE
+               S02:0000083D:  20 8E 10
+F00:0163       BitmapNextLine:
+F00:0164       		pushall
+F05:0001       		pha
+               S02:00000840:  48
+F05:0002       		
+F05:0003       		txa
+               S02:00000841:  8A
+F05:0004       		pha
+               S02:00000842:  48
+F05:0005       		
+F05:0006       		tya 
+               S02:00000843:  98
+F05:0007       		pha
+               S02:00000844:  48
+F00:0165       			ldY #0					;Offset for bytes in this strip
+               S02:00000845:  A0 00
+F00:0166       BitmapNextByte:
+F00:0167       			lda (z_hl),Y			;Load in a byte from source - offset with Y
+               S02:00000847:  B1 20
+F00:0168       			sta (z_de),Y			;Store it in screen ram - offset with Y
+               S02:00000849:  91 24
+F00:0169       			
+F00:0170       			;loadpair z_bc,$0FFF	;Pause to allow redraw to be seen
+F00:0171       			;jsr Pause
+F00:0172       
+F00:0173       			inY						;INC the offset
+               S02:0000084B:  C8
+F00:0174       			cpY #bmpwidth*8*2		;We draw 8 lines * bitmap width
+               S02:0000084C:  C0 30
+F00:0175       			bne BitmapNextByte
+               S02:0000084E:  D0 F7
+F00:0176       			
+F00:0177       			sty z_C					;ADD Y to Z_HL to move source down one strip 
+               S02:00000850:  84 22
+F00:0178       			jsr addHL_0C			;Add Z_C to HL
+               S02:00000852:  20 76 0A
+F00:0179       		pullall
+F06:0001       		pla 
+               S02:00000855:  68
+F06:0002       		tay
+               S02:00000856:  A8
+F06:0003       		
+F06:0004       		pla
+               S02:00000857:  68
+F06:0005       		tax
+               S02:00000858:  AA
+F06:0006       		
+F06:0007       		pla
+               S02:00000859:  68
+F00:0180       	pullall
+F07:0001       		pla 
+               S02:0000085A:  68
+F07:0002       		tay
+               S02:0000085B:  A8
+F07:0003       		
+F07:0004       		pla
+               S02:0000085C:  68
+F07:0005       		tax
+               S02:0000085D:  AA
+F07:0006       		
+F07:0007       		pla
+               S02:0000085E:  68
+F00:0181       	pha
+               S02:0000085F:  48
+F00:0182       		tya
+               S02:00000860:  98
+F00:0183       			clc
+               S02:00000861:  18
+F00:0184       			adc #8					;Move Y down 8 lines
+               S02:00000862:  69 08
+F00:0185       		tay
+               S02:00000864:  A8
+F00:0186       	pla
+               S02:00000865:  68
+F00:0187       	clc
+               S02:00000866:  18
+F00:0188       	adc #1
+               S02:00000867:  69 01
+F00:0189       	cmp #6					;NO of strips in Bitmap (Y) 8 rows per strip
+               S02:00000869:  C9 06
+F00:0190       	bne NexBitmapNextStrip
+               S02:0000086B:  D0 CB
+F00:0191       	
+F00:0192       	endif	; BMPBBC
+F00:0193       	
+F00:0194       
+F00:0195       	
+F00:0196       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0197       ;									Normal type - linear bmp
+F00:0198       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0199       		ifdef BMPNORMALQ					;Simple bitmap routine for Atari800
+F00:0200       			
+F00:0201       		lda #<Bitmap	;Bitmap source
+F00:0202       		sta z_L
+F00:0203       		lda #>Bitmap
+F00:0204       		sta z_H
+F00:0205       	
+F00:0206       		ldx #6			;Xpos
+F00:0207       		ldy #6			;Ypos
+F00:0208       	
+F00:0209       		jsr GetScreenPos
+F00:0210       		ldx #0
+F00:0211       BitmapNextLine:
+F00:0212       		pushall
+F00:0213       			ldY #0
+F00:0214       			PushPair z_de			;Backup Mempos
+F00:0215       BitmapNextByte:
+F00:0216       				ldx #0
+F00:0217       				lda (z_hl),Y		;Copy a byte from the source 
+F00:0218       				sta (z_de),Y		;to the destination
+F00:0219       					
+F00:0220       			;loadpair z_bc,$0FFF	;Pause to allow redraw to be seen
+F00:0221       			;jsr Pause
+F00:0222       				
+F00:0223       				inY
+F00:0224       				cpY #bmpwidth		;Repeat for next byte of line
+F00:0225       				bne BitmapNextByte
+F00:0226       				
+F00:0227       				sty z_C				;ADD Y to Z_HL to move source down one strip 
+F00:0228       				jsr addHL_0C		;Add Z_C to HL
+F00:0229       				
+F00:0230       			PullPair z_de			;Restore mempos
+F00:0231       			jsr GetNextLine			;move mempos down a line
+F00:0232       		pullall
+F00:0233       		inx 
+F00:0234       		cpx #8*6					;Check if we've done all the lines
+F00:0235       		bne BitmapNextLine			;Repeat until we have
+F00:0236       
+F00:0237       	endif 	;End of BMPNORMALQ	
+F00:0238       
+F00:0239       	ifdef BMPNORMAL
+F00:0240       
+F00:0241       		ldx #6			;Xpos
+F00:0242       		ldy #8			;Ypos
+F00:0243       		
+F00:0244       		lda #0				
+F00:0245       NexBitmapNextStrip:
+F00:0246       		pushall
+F00:0247       			jsr GetScreenPos
+F00:0248       			ldx #0
+F00:0249       BitmapNextLine:
+F00:0250       			pushall
+F00:0251       				ldY #0
+F00:0252       				PushPair z_de			;Backup Mempos
+F00:0253       BitmapNextByte:
+F00:0254       					ldx #0
+F00:0255       					lda (z_hl,X)
+F00:0256       					
+F00:0257       					sta (z_de),Y
+F00:0258       					jsr IncHL
+F00:0259       					
+F00:0260       					inY
+F00:0261       					cpY #bmpwidth				
+F00:0262       					bne BitmapNextByte
+F00:0263       				PullPair z_de			;Restore mempos
+F00:0264       				jsr GetNextLine			;move mempos down a line
+F00:0265       				
+F00:0266       		;	loadpair z_bc,$0FFF	;Pause to allow redraw to be seen
+F00:0267       		;	jsr Pause
+F00:0268       			pullall
+F00:0269       			inx 
+F00:0270       			cpx #8
+F00:0271       			bne BitmapNextLine			;Some systems need a recalc every 8 lines
+F00:0272       		pullall
+F00:0273       		pha
+F00:0274       			tya
+F00:0275       			clc
+F00:0276       			adc #8						;Move Y down 8 lines
+F00:0277       			tay
+F00:0278       		pla
+F00:0279       		clc
+F00:0280       		adc #1
+F00:0281       		cmp #6							;See if we've got to the end of the bitmap
+F00:0282       		bne NexBitmapNextStrip			;Every 8 lines we need to do a full recalc
+F00:0283       	
+F00:0284       	endif 	;End of BMPNORMAL	
+F00:0285       
+F00:0286       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0287       	
+F00:0288       	;jmp *
+F00:0289       
+F00:0290       	lda #>Palette
+               S02:0000086D:  A9 0E
+F00:0291       	sta z_d
+               S02:0000086F:  85 25
+F00:0292       	lda #<Palette
+               S02:00000871:  A9 FA
+F00:0293       	sta z_e
+               S02:00000873:  85 24
+F00:0294       
+F00:0295       	jsr newline
+               S02:00000875:  20 15 10
+F00:0296       	ldy #0
+               S02:00000878:  A0 00
+F00:0297       SetPaletteAgain	
+F00:0298       	
+F00:0299       	lda (z_de),y
+               S02:0000087A:  B1 24
+F00:0300       	sta z_l
+               S02:0000087C:  85 20
+F00:0301       	iny
+               S02:0000087E:  C8
+F00:0302       	
+F00:0303       	lda (z_de),y
+               S02:0000087F:  B1 24
+F00:0304       	sta z_h
+               S02:00000881:  85 21
+F00:0305       	iny
+               S02:00000883:  C8
+F00:0306       	
+F00:0307       	tya
+               S02:00000884:  98
+F00:0308       	clc
+               S02:00000885:  18
+F00:0309       	ror
+               S02:00000886:  6A
+F00:0310       	sec
+               S02:00000887:  38
+F00:0311       	sbc #1
+               S02:00000888:  E9 01
+F00:0312       	jsr SetPalette		;-GRB definition in Z_HL
+               S02:0000088A:  20 FD 10
+F00:0313       	ifdef BuildNES
+F00:0314       		cpy #32*2		;16 for back, 16 for sprite
+F00:0315       	else
+F00:0316       		cpy #4*2
+               S02:0000088D:  C0 08
+F00:0317       	endif
+F00:0318       	bne SetPaletteAgain
+               S02:0000088F:  D0 E9
+F00:0319       
+F00:0320       	jmp *
+               S02:00000891:  4C 91 08
+F00:0321       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+F00:0322       	
+F00:0323       Pause:
+F00:0324       	jsr decbc
+               S02:00000894:  20 47 0A
+F00:0325       	lda z_b
+               S02:00000897:  A5 23
+F00:0326       	ora z_c
+               S02:00000899:  05 22
+F00:0327       	bne Pause		;Pause for BC ticks
+               S02:0000089B:  D0 F7
+F00:0328       	rts
+               S02:0000089D:  60
+F00:0329       	
+F00:0330       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+F00:0331       
+F00:0332       	
+F00:0333       	include "./SrcAll/Monitor.asm"
+F08:0001       ;Usage:
+F08:0002       ;        jsr MemDump
+F08:0003       ;        word $CEED      ;Address
+F08:0004       ;        byte $3          ;Lines
+F08:0005       
+F08:0006       
+F08:0007       
+F08:0008       MemDump
+F08:0009       
+F08:0010               pha
+               S02:0000089E:  48
+F08:0011               txa
+               S02:0000089F:  8A
+F08:0012               pha
+               S02:000008A0:  48
+F08:0013               tya
+               S02:000008A1:  98
+F08:0014               pha
+               S02:000008A2:  48
+F08:0015               tay
+               S02:000008A3:  A8
+F08:0016                       ;jsr Monitor
+F08:0017                       tsx
+               S02:000008A4:  BA
+F08:0018                     
+F08:0019                       ;jsr Monitor
+F08:0020                       
+F08:0021                       lda SPpage+$04,x
+               S02:000008A5:  BD 04 01
+F08:0022                       sta t_RetAddrL
+               S02:000008A8:  85 29
+F08:0023                       ;jsr Monitor
+F08:0024                       lda SPpage+$05,x
+               S02:000008AA:  BD 05 01
+F08:0025                       sta t_RetAddrH
+               S02:000008AD:  85 2A
+F08:0026                       ;jsr Monitor
+F08:0027       
+F08:0028                       ldy #1
+               S02:000008AF:  A0 01
+F08:0029                       lda (t_RetAddr),Y
+               S02:000008B1:  B1 29
+F08:0030                       sta t_MemdumpL
+               S02:000008B3:  85 2E
+F08:0031                       ;jsr Monitor
+F08:0032               
+F08:0033                       iny
+               S02:000008B5:  C8
+F08:0034                       lda (t_RetAddr),Y
+               S02:000008B6:  B1 29
+F08:0035                       sta t_MemdumpH
+               S02:000008B8:  85 2F
+F08:0036                       ;jsr Monitor
+F08:0037               
+F08:0038                       iny
+               S02:000008BA:  C8
+F08:0039                       lda (t_RetAddr),Y
+               S02:000008BB:  B1 29
+F08:0040                       
+F08:0041                       tax  
+               S02:000008BD:  AA
+F08:0042                       jsr MemDumpDirectB
+               S02:000008BE:  20 DD 08
+F08:0043       
+F08:0044                       tsx
+               S02:000008C1:  BA
+F08:0045                       inc SPpage+$04,x
+               S02:000008C2:  FE 04 01
+F08:0046                       inc SPpage+$04,x
+               S02:000008C5:  FE 04 01
+F08:0047                       inc SPpage+$04,x
+               S02:000008C8:  FE 04 01
+F08:0048       				
+F08:0049       				
+F08:0050                       lda SPpage+$04,x
+               S02:000008CB:  BD 04 01
+F08:0051                       cmp #3
+               S02:000008CE:  C9 03
+F08:0052                       bcs MemDump_NoIncSpH
+               S02:000008D0:  B0 03
+F08:0053       				inc SPpage+$05,x
+               S02:000008D2:  FE 05 01
+F08:0054       MemDump_NoIncSpH
+F08:0055               pla
+               S02:000008D5:  68
+F08:0056       		tay
+               S02:000008D6:  A8
+F08:0057               pla
+               S02:000008D7:  68
+F08:0058               tax
+               S02:000008D8:  AA
+F08:0059               pla
+               S02:000008D9:  68
+F08:0060       
+F08:0061       		
+F08:0062               rts
+               S02:000008DA:  60
+F08:0063       
+F08:0064       MemDumpDirect
+F08:0065               ldy #8
+               S02:000008DB:  A0 08
+F08:0066       MemDumpDirectB
+F08:0067               lda t_MemdumpH
+               S02:000008DD:  A5 2F
+F08:0068               sta t_MemdumpBH
+               S02:000008DF:  85 31
+F08:0069               jsr printhex
+               S02:000008E1:  20 AC 09
+F08:0070               lda t_MemdumpL
+               S02:000008E4:  A5 2E
+F08:0071               sta t_MemdumpBL
+               S02:000008E6:  85 30
+F08:0072               jsr printhex
+               S02:000008E8:  20 AC 09
+F08:0073       
+F08:0074               lda #":"
+               S02:000008EB:  A9 3A
+F08:0075               jsr PrintChar
+               S02:000008ED:  20 39 0F
+F08:0076               jsr NewLine
+               S02:000008F0:  20 15 10
+F08:0077       
+F08:0078               ldy #0
+               S02:000008F3:  A0 00
+F08:0079       MemDump_Again
+F08:0080       		;jsr Monitor
+F08:0081       
+F08:0082               tya
+               S02:000008F5:  98
+F08:0083               pha
+               S02:000008F6:  48
+F08:0084       MemDump_AgainHex
+F08:0085                       lda (t_MemdumpL),y
+               S02:000008F7:  B1 2E
+F08:0086       
+F08:0087                       jsr printhex
+               S02:000008F9:  20 AC 09
+F08:0088                       lda #" "
+               S02:000008FC:  A9 20
+F08:0089                       jsr PrintChar
+               S02:000008FE:  20 39 0F
+F08:0090                       iny
+               S02:00000901:  C8
+F08:0091                       tya
+               S02:00000902:  98
+F08:0092                       and #%00000111
+               S02:00000903:  29 07
+F08:0093                       bne MemDump_AgainHex
+               S02:00000905:  D0 F0
+F08:0094               pla
+               S02:00000907:  68
+F08:0095               tay
+               S02:00000908:  A8
+F08:0096       MemDump_AgainChar
+F08:0097               lda (t_MemdumpBL),y
+               S02:00000909:  B1 30
+F08:0098               cmp #32
+               S02:0000090B:  C9 20
+F08:0099               Bcc MemDump_BadChar
+               S02:0000090D:  90 14
+F08:0100               cmp #128
+               S02:0000090F:  C9 80
+F08:0101               Bcs MemDump_BadChar
+               S02:00000911:  B0 10
+F08:0102       MemDump_AgainCharRet
+F08:0103               
+F08:0104               jsr PrintChar
+               S02:00000913:  20 39 0F
+F08:0105       
+F08:0106               iny
+               S02:00000916:  C8
+F08:0107               tya
+               S02:00000917:  98
+F08:0108               and #%00000111
+               S02:00000918:  29 07
+F08:0109               bne MemDump_AgainChar
+               S02:0000091A:  D0 ED
+F08:0110       		ifndef BuildNES
+F08:0111       		ifndef BuildPCE
+F08:0112       			jsr NewLine
+               S02:0000091C:  20 15 10
+F08:0113       		endif
+F08:0114       		endif
+F08:0115       MemDump_CarryOn
+F08:0116       		
+F08:0117               dex
+               S02:0000091F:  CA
+F08:0118               bne MemDump_Again
+               S02:00000920:  D0 D3
+F08:0119       			
+F08:0120               rts
+               S02:00000922:  60
+F08:0121       MemDump_BadChar
+F08:0122               lda #"."
+               S02:00000923:  A9 2E
+F08:0123               jmp MemDump_AgainCharRet
+               S02:00000925:  4C 13 09
+F08:0124       		
+F08:0125       		
+F08:0126       		
+F08:0127       Monitor
+F08:0128               ;lda #$69
+F08:0129               ;pha
+F08:0130               ;plp
+F08:0131       
+F08:0132               php
+               S02:00000928:  08
+F08:0133               pha
+               S02:00000929:  48
+F08:0134                       lda #"a"
+               S02:0000092A:  A9 61
+F08:0135                       jsr printmonitorchar
+               S02:0000092C:  20 8C 09
+F08:0136               pla
+               S02:0000092F:  68
+F08:0137               pha     ;Push A
+               S02:00000930:  48
+F08:0138               jsr printmonitorhex
+               S02:00000931:  20 94 09
+F08:0139               
+F08:0140       
+F08:0141               txa     ;ld a,x69696
+               S02:00000934:  8A
+F08:0142               pha     ;push
+               S02:00000935:  48
+F08:0143       
+F08:0144               tya     ;ld a,y
+               S02:00000936:  98
+F08:0145               pha     ;push
+               S02:00000937:  48
+F08:0146       
+F08:0147             ;  tsx     ;LD X,SP
+F08:0148           
+F08:0149               lda #"x"
+               S02:00000938:  A9 78
+F08:0150               jsr printmonitorchar
+               S02:0000093A:  20 8C 09
+F08:0151               txa
+               S02:0000093D:  8A
+F08:0152               jsr printmonitorhex
+               S02:0000093E:  20 94 09
+F08:0153       
+F08:0154               lda #"y"
+               S02:00000941:  A9 79
+F08:0155               jsr printmonitorchar
+               S02:00000943:  20 8C 09
+F08:0156               tya
+               S02:00000946:  98
+F08:0157               jsr printmonitorhex
+               S02:00000947:  20 94 09
+F08:0158       
+F08:0159           
+F08:0160               lda #"s"
+               S02:0000094A:  A9 73
+F08:0161               jsr printmonitorchar
+               S02:0000094C:  20 8C 09
+F08:0162       
+F08:0163               tsx
+               S02:0000094F:  BA
+F08:0164               txa
+               S02:00000950:  8A
+F08:0165               clc
+               S02:00000951:  18
+F08:0166               adc #6
+               S02:00000952:  69 06
+F08:0167               jsr printmonitorhex
+               S02:00000954:  20 94 09
+F08:0168       
+F08:0169               lda #"f"
+               S02:00000957:  A9 66
+F08:0170               jsr printmonitorchar
+               S02:00000959:  20 8C 09
+F08:0171       
+F08:0172               
+F08:0173               tsx
+               S02:0000095C:  BA
+F08:0174               txa
+               S02:0000095D:  8A
+F08:0175               clc
+               S02:0000095E:  18
+F08:0176               adc #4
+               S02:0000095F:  69 04
+F08:0177               tax
+               S02:00000961:  AA
+F08:0178               lda SPpage+$00,x
+               S02:00000962:  BD 00 01
+F08:0179               
+F08:0180               jsr printmonitorhex
+               S02:00000965:  20 94 09
+F08:0181               
+F08:0182       
+F08:0183               lda #"p";
+               S02:00000968:  A9 70
+F08:0184               jsr printmonitorchar
+               S02:0000096A:  20 8C 09
+F08:0185       
+F08:0186       
+F08:0187               tsx
+               S02:0000096D:  BA
+F08:0188               txa
+               S02:0000096E:  8A
+F08:0189               clc
+               S02:0000096F:  18
+F08:0190               adc #5
+               S02:00000970:  69 05
+F08:0191               pha
+               S02:00000972:  48
+F08:0192                       tax
+               S02:00000973:  AA
+F08:0193                       lda SPpage+$01,x
+               S02:00000974:  BD 01 01
+F08:0194                       jsr printhex
+               S02:00000977:  20 AC 09
+F08:0195               pla
+               S02:0000097A:  68
+F08:0196               tax
+               S02:0000097B:  AA
+F08:0197               lda SPpage+$00,x
+               S02:0000097C:  BD 00 01
+F08:0198               jsr printhex
+               S02:0000097F:  20 AC 09
+F08:0199               
+F08:0200               Jsr NewLine
+               S02:00000982:  20 15 10
+F08:0201       
+F08:0202               pla
+               S02:00000985:  68
+F08:0203               tay
+               S02:00000986:  A8
+F08:0204               pla
+               S02:00000987:  68
+F08:0205               tax
+               S02:00000988:  AA
+F08:0206               pla     ;Pop A
+               S02:00000989:  68
+F08:0207               plp     ;Pop F
+               S02:0000098A:  28
+F08:0208               rts
+               S02:0000098B:  60
+F08:0209       printmonitorchar
+F08:0210               jsr PrintChar
+               S02:0000098C:  20 39 0F
+F08:0211               lda #":"
+               S02:0000098F:  A9 3A
+F08:0212               jmp PrintChar
+               S02:00000991:  4C 39 0F
+F08:0213       printmonitorhex
+F08:0214               jsr printhex
+               S02:00000994:  20 AC 09
+F08:0215               lda #" "
+               S02:00000997:  A9 20
+F08:0216               jmp PrintChar
+               S02:00000999:  4C 39 0F
+F08:0217              
+F08:0218       
+F08:0219       
+F08:0220       
+F00:0334       	include "./SrcAll/BasicFunctions.asm"
+F09:0001       
+F09:0002       z_HL equ z_Regs
+F09:0003       z_L  equ z_Regs
+F09:0004       z_H  equ z_Regs+1
+F09:0005       
+F09:0006       z_BC equ z_Regs+2
+F09:0007       z_C  equ z_Regs+2
+F09:0008       z_B  equ z_Regs+3
+F09:0009       
+F09:0010       z_DE equ z_Regs+4
+F09:0011       z_E  equ z_Regs+4
+F09:0012       z_D  equ z_Regs+5
+F09:0013       
+F09:0014       z_As equ z_Regs+6
+F09:0015       z_Hs equ z_Regs+7
+F09:0016       
+F09:0017       z_ixl equ z_Regs+8
+F09:0018       z_ixh equ z_Regs+9
+F09:0019       z_ix equ z_Regs+8
+F09:0020       
+F09:0021       
+F09:0022       z_iyl equ z_Regs+10
+F09:0023       z_iyh equ z_Regs+11
+F09:0024       z_iy  equ z_Regs+10
+F09:0025       
+F09:0026       z_spec equ z_Regs+12 ; Used for A during Z80 emu routines
+F09:0027       
+F09:0028       
+F09:0029       t_SP     	equ z_Regs+8
+F09:0030       t_RetAddr 	equ z_Regs+9
+F09:0031       t_RetAddrL 	equ z_Regs+9
+F09:0032       t_RetAddrH 	equ z_Regs+10
+F09:0033       t_A     	equ z_Regs+11
+F09:0034       t_X     	equ z_Regs+12
+F09:0035       t_Y     	equ z_Regs+13
+F09:0036       
+F09:0037       t_MemdumpL     	equ z_Regs+14
+F09:0038       t_MemdumpH     	equ z_Regs+15
+F09:0039       
+F09:0040       t_MemdumpBL     	equ z_Regs+16
+F09:0041       t_MemdumpBH     	equ z_Regs+17
+F09:0042       
+F09:0043       ;z_BCs equ z_Regs+18
+F09:0044       ;z_Cs  equ z_Regs+19
+F09:0045       ;z_Bs  equ z_Regs+20
+F09:0046       
+F09:0047       Bit0 equ	LookupBits+0
+F09:0048       Bit1 equ	LookupBits+1
+F09:0049       Bit2 equ	LookupBits+2
+F09:0050       Bit3 equ	LookupBits+3
+F09:0051       Bit4 equ	LookupBits+4
+F09:0052       Bit5 equ	LookupBits+5
+F09:0053       Bit6 equ	LookupBits+6
+F09:0054       Bit7 equ	LookupBits+7
+F09:0055       
+F09:0056       LookupBits: 		db %00000001,%00000010,%00000100,%00001000,%00010000,%00100000,%01000000,%10000000
+               S02:0000099C:  01
+               S02:0000099D:  02
+               S02:0000099E:  04
+               S02:0000099F:  08
+               S02:000009A0:  10
+               S02:000009A1:  20
+               S02:000009A2:  40
+               S02:000009A3:  80
+F09:0057       LookupMaskBits: 	db %11111110,%11111101,%11111011,%11110111,%11101111,%11011111,%10111111,%01111111
+               S02:000009A4:  FE
+               S02:000009A5:  FD
+               S02:000009A6:  FB
+               S02:000009A7:  F7
+               S02:000009A8:  EF
+               S02:000009A9:  DF
+               S02:000009AA:  BF
+               S02:000009AB:  7F
+F09:0058       printhex:
+F09:0059               pha
+               S02:000009AC:  48
+F09:0060                       clc
+               S02:000009AD:  18
+F09:0061                       and #%11110000
+               S02:000009AE:  29 F0
+F09:0062                       ror
+               S02:000009B0:  6A
+F09:0063                       ror
+               S02:000009B1:  6A
+F09:0064                       ror
+               S02:000009B2:  6A
+F09:0065                       ror
+               S02:000009B3:  6A
+F09:0066                       jsr printhexAgain
+               S02:000009B4:  20 C0 09
+F09:0067               pla
+               S02:000009B7:  68
+F09:0068               pha
+               S02:000009B8:  48
+F09:0069                       and #%00001111
+               S02:000009B9:  29 0F
+F09:0070                       jsr printhexAgain
+               S02:000009BB:  20 C0 09
+F09:0071               pla
+               S02:000009BE:  68
+F09:0072               rts
+               S02:000009BF:  60
+F09:0073       printhexAgain
+F09:0074               cmp #10
+               S02:000009C0:  C9 0A
+F09:0075               bcs printhex_OverNine
+               S02:000009C2:  B0 07
+F09:0076               clc
+               S02:000009C4:  18
+F09:0077               adc #'0'
+               S02:000009C5:  69 30
+F09:0078               jsr PrintChar
+               S02:000009C7:  20 39 0F
+F09:0079               rts
+               S02:000009CA:  60
+F09:0080       printhex_OverNine
+F09:0081               clc
+               S02:000009CB:  18
+F09:0082               adc #55
+               S02:000009CC:  69 37
+F09:0083               ;'adc #'A'
+F09:0084               jsr PrintChar
+               S02:000009CE:  20 39 0F
+F09:0085               rts
+               S02:000009D1:  60
+F09:0086       
+F09:0087           
+F09:0088       
+F09:0089       PrintString
+F09:0090               ldy #0
+               S02:000009D2:  A0 00
+F09:0091       PrintString_again
+F09:0092               lda (z_HL),y
+               S02:000009D4:  B1 20
+F09:0093               cmp #255
+               S02:000009D6:  C9 FF
+F09:0094               beq PrintString_Done
+               S02:000009D8:  F0 07
+F09:0095               jsr PrintChar
+               S02:000009DA:  20 39 0F
+F09:0096               iny
+               S02:000009DD:  C8
+F09:0097               jmp PrintString_again
+               S02:000009DE:  4C D4 09
+F09:0098       PrintString_Done
+F09:0099               rts
+               S02:000009E1:  60
+F09:0100       
+F09:0101       WaitChar
+F09:0102               tya
+               S02:000009E2:  98
+F09:0103               pha
+               S02:000009E3:  48
+F09:0104       
+F09:0105       WaitChar_Again
+F09:0106               jsr $FFE4       ;ReadChar
+               S02:000009E4:  20 E4 FF
+F09:0107               beq WaitChar_Again
+               S02:000009E7:  F0 FB
+F09:0108       
+F09:0109               sta t_A
+               S02:000009E9:  85 2B
+F09:0110               pla
+               S02:000009EB:  68
+F09:0111               tay
+               S02:000009EC:  A8
+F09:0112               lda t_A
+               S02:000009ED:  A5 2B
+F09:0113               rts
+               S02:000009EF:  60
+F09:0114       
+F09:0115       SwapXY
+F09:0116               pha
+               S02:000009F0:  48
+F09:0117               txa
+               S02:000009F1:  8A
+F09:0118               pha
+               S02:000009F2:  48
+F09:0119               tya
+               S02:000009F3:  98
+F09:0120       
+F09:0121               tax
+               S02:000009F4:  AA
+F09:0122               pla
+               S02:000009F5:  68
+F09:0123               tay
+               S02:000009F6:  A8
+F09:0124               pla
+               S02:000009F7:  68
+F09:0125               
+F09:0126               rts
+               S02:000009F8:  60
+F09:0127       
+F09:0128       ;NewLine
+F09:0129               ;lda #13
+F09:0130               ;jmp $FFD2       ;PrintChar
+F09:0131       
+F09:0132       
+F09:0133       ;Locate
+F09:0134               ;jsr SwapXY
+F09:0135               ;clc
+F09:0136               ;jsr $E50A
+F09:0137               ;rts
+F09:0138       
+F09:0139       GetPos
+F09:0140               
+F09:0141               sec     ;set carry
+               S02:000009F9:  38
+F09:0142               jsr $E50A
+               S02:000009FA:  20 0A E5
+F09:0143               jsr SwapXY
+               S02:000009FD:  20 F0 09
+F09:0144               rts
+               S02:00000A00:  60
+F09:0145       		
+F09:0146       CLDIR:	;Clear LDIR
+F09:0147       		ldy #0
+               S02:00000A01:  A0 00
+F09:0148       		sta (z_hl),y
+               S02:00000A03:  91 20
+F09:0149       		lda z_l
+               S02:00000A05:  A5 20
+F09:0150       		clc
+               S02:00000A07:  18
+F09:0151       		adc #1
+               S02:00000A08:  69 01
+F09:0152       		sta z_e
+               S02:00000A0A:  85 24
+F09:0153       		lda #0
+               S02:00000A0C:  A9 00
+F09:0154       		adc z_h
+               S02:00000A0E:  65 21
+F09:0155       		sta z_d
+               S02:00000A10:  85 25
+F09:0156       		
+F09:0157       LDIR:
+F09:0158       ;        jsr MemDump
+F09:0159       ;        word z_HL	      ;Address
+F09:0160       ;        byte $1          ;Lines
+F09:0161       			
+F09:0162       		ldy #0
+               S02:00000A12:  A0 00
+F09:0163               lda (z_HL),Y
+               S02:00000A14:  B1 20
+F09:0164               sta (z_DE),Y
+               S02:00000A16:  91 24
+F09:0165       	
+F09:0166       		INC z_L
+               S02:00000A18:  E6 20
+F09:0167       		BNE	LDIR_SkipInc1
+               S02:00000A1A:  D0 02
+F09:0168       		INC	z_H
+               S02:00000A1C:  E6 21
+F09:0169       LDIR_SkipInc1:
+F09:0170       		INC z_E
+               S02:00000A1E:  E6 24
+F09:0171       		BNE	LDIR_SkipInc2
+               S02:00000A20:  D0 02
+F09:0172       		INC	z_D
+               S02:00000A22:  E6 25
+F09:0173       LDIR_SkipInc2:
+F09:0174       
+F09:0175       		DEC z_C
+               S02:00000A24:  C6 22
+F09:0176       		BNE LDIR
+               S02:00000A26:  D0 EA
+F09:0177       		LDA z_B
+               S02:00000A28:  A5 23
+F09:0178       		BEQ	LDIR_Done
+               S02:00000A2A:  F0 05
+F09:0179       		DEC z_B
+               S02:00000A2C:  C6 23
+F09:0180       		jmp LDIR
+               S02:00000A2E:  4C 12 0A
+F09:0181       LDIR_Done:
+F09:0182       		rts
+               S02:00000A31:  60
+F09:0183       IncBC:
+F09:0184       		INC z_C
+               S02:00000A32:  E6 22
+F09:0185       		BNE	IncBC_Done
+               S02:00000A34:  D0 02
+F09:0186       		INC	z_B
+               S02:00000A36:  E6 23
+F09:0187       IncBC_Done:
+F09:0188       		rts
+               S02:00000A38:  60
+F09:0189       		
+F09:0190       IncDE:
+F09:0191       		INC z_E
+               S02:00000A39:  E6 24
+F09:0192       		BNE	IncDE_Done
+               S02:00000A3B:  D0 02
+F09:0193       		INC	z_D
+               S02:00000A3D:  E6 25
+F09:0194       IncDE_Done:
+F09:0195       		rts
+               S02:00000A3F:  60
+F09:0196       		
+F09:0197       IncHL:
+F09:0198       		INC z_L
+               S02:00000A40:  E6 20
+F09:0199       		BNE	IncHL_Done
+               S02:00000A42:  D0 02
+F09:0200       		INC	z_H
+               S02:00000A44:  E6 21
+F09:0201       IncHL_Done:
+F09:0202       		rts
+               S02:00000A46:  60
+F09:0203       				
+F09:0204       DecBC:	
+F09:0205       	pha
+               S02:00000A47:  48
+F09:0206       		lda z_C
+               S02:00000A48:  A5 22
+F09:0207       		bne DecBC_b
+               S02:00000A4A:  D0 02
+F09:0208       		DEC z_B
+               S02:00000A4C:  C6 23
+F09:0209       DecBC_b:	
+F09:0210       		DEC z_C
+               S02:00000A4E:  C6 22
+F09:0211       	pla
+               S02:00000A50:  68
+F09:0212       	rts
+               S02:00000A51:  60
+F09:0213       				
+F09:0214       DecHL:		
+F09:0215       	pha
+               S02:00000A52:  48
+F09:0216       		lda z_L
+               S02:00000A53:  A5 20
+F09:0217       		bne DecHL_h
+               S02:00000A55:  D0 02
+F09:0218       		DEC z_H
+               S02:00000A57:  C6 21
+F09:0219       DecHL_h:	
+F09:0220       		DEC z_L
+               S02:00000A59:  C6 20
+F09:0221       	pla
+               S02:00000A5B:  68
+F09:0222       	rts
+               S02:00000A5C:  60
+F09:0223       	
+F09:0224       DecDE:		
+F09:0225       	pha
+               S02:00000A5D:  48
+F09:0226       		lda z_E
+               S02:00000A5E:  A5 24
+F09:0227       		bne DecDE_D
+               S02:00000A60:  D0 02
+F09:0228       		DEC z_D
+               S02:00000A62:  C6 25
+F09:0229       DecDE_D:	
+F09:0230       		DEC z_E
+               S02:00000A64:  C6 24
+F09:0231       	pla
+               S02:00000A66:  68
+F09:0232       	rts
+               S02:00000A67:  60
+F09:0233       AddHL_DE				;Add DE to HL
+F09:0234       		clc
+               S02:00000A68:  18
+F09:0235       		lda z_e			;Add E to L
+               S02:00000A69:  A5 24
+F09:0236       		adc z_l
+               S02:00000A6B:  65 20
+F09:0237       		sta z_l
+               S02:00000A6D:  85 20
+F09:0238       		lda z_d			;Add D to H (with any carry)
+               S02:00000A6F:  A5 25
+F09:0239       		adc z_h
+               S02:00000A71:  65 21
+F09:0240       		sta z_h
+               S02:00000A73:  85 21
+F09:0241       		rts
+               S02:00000A75:  60
+F09:0242       		
+F09:0243       AddHL_0C:		
+F09:0244       		lda #0
+               S02:00000A76:  A9 00
+F09:0245       		sta z_b
+               S02:00000A78:  85 23
+F09:0246       AddHL_BC				;Add BC to HL
+F09:0247       		clc
+               S02:00000A7A:  18
+F09:0248       		lda z_c
+               S02:00000A7B:  A5 22
+F09:0249       		adc z_l
+               S02:00000A7D:  65 20
+F09:0250       		sta z_l
+               S02:00000A7F:  85 20
+F09:0251       		lda z_b
+               S02:00000A81:  A5 23
+F09:0252       		adc z_h
+               S02:00000A83:  65 21
+F09:0253       		sta z_h
+               S02:00000A85:  85 21
+F09:0254       		rts
+               S02:00000A87:  60
+F09:0255       SubHL_BC				;Subtract BC to HL
+F09:0256       		sec
+               S02:00000A88:  38
+F09:0257       		lda z_l
+               S02:00000A89:  A5 20
+F09:0258       		sbc z_c
+               S02:00000A8B:  E5 22
+F09:0259       		sta z_l
+               S02:00000A8D:  85 20
+F09:0260       		lda z_h
+               S02:00000A8F:  A5 21
+F09:0261       		sbc z_b
+               S02:00000A91:  E5 23
+F09:0262       		sta z_h
+               S02:00000A93:  85 21
+F09:0263       		rts
+               S02:00000A95:  60
+F09:0264       SubHL_DE				;Subtract BC to HL
+F09:0265       		sec
+               S02:00000A96:  38
+F09:0266       		lda z_l		;Subract E from L
+               S02:00000A97:  A5 20
+F09:0267       		sbc z_E
+               S02:00000A99:  E5 24
+F09:0268       		sta z_l
+               S02:00000A9B:  85 20
+F09:0269       		lda z_h		;Subtract D from H (with any carry)
+               S02:00000A9D:  A5 21
+F09:0270       		sbc z_D
+               S02:00000A9F:  E5 25
+F09:0271       		sta z_h
+               S02:00000AA1:  85 21
+F09:0272       		rts
+               S02:00000AA3:  60
+F09:0273       AddDE_BC				;Add DE to HL
+F09:0274       		clc
+               S02:00000AA4:  18
+F09:0275       		lda z_c
+               S02:00000AA5:  A5 22
+F09:0276       		adc z_e
+               S02:00000AA7:  65 24
+F09:0277       		sta z_e
+               S02:00000AA9:  85 24
+F09:0278       		lda z_b
+               S02:00000AAB:  A5 23
+F09:0279       		
+F09:0280       		adc z_d
+               S02:00000AAD:  65 25
+F09:0281       		sta z_d
+               S02:00000AAF:  85 25
+F09:0282       		rts
+               S02:00000AB1:  60
+F09:0283       SwapNibbles				;$AB -> $BA
+F09:0284       		ASL ;(shift left - bottom bit zero)
+               S02:00000AB2:  0A
+F09:0285       		ADC #$80 ;(pop top bit off)
+               S02:00000AB3:  69 80
+F09:0286       		ROL ;(shift carry in)
+               S02:00000AB5:  2A
+F09:0287       		ASL ;(shift left - bottom bit zero)
+               S02:00000AB6:  0A
+F09:0288       		ADC #$80 ;(pop top bit off)
+               S02:00000AB7:  69 80
+F09:0289       		ROL ;(shift carry in)
+               S02:00000AB9:  2A
+F09:0290       		rts
+               S02:00000ABA:  60
+F00:0335       	
+F00:0336       MyText
+F00:0337           db "Hello worlds!10000001235678!!!",  255
+               S02:00000ABB:  48 65 6C 6C 6F 20 77 6F 72 6C 64 73 21 31 30 30
+               S02:00000ACB:  30 30 30 30 31 32 33 35 36 37 38 21 21 21
+               S02:00000AD9:  FF
+F00:0338       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0339       Bitmap:
+F00:0340       	Ifdef BuildAP2
+F00:0341       		ifdef Mode2Color
+F00:0342       			incbin "./ResAll/Sprites/RawAP2.RAW"
+F00:0343       		else
+F00:0344       			incbin "./ResAll/Sprites/RawAP2_4col.RAW"
+F00:0345       		endif
+F00:0346       	endif
+F00:0347       	Ifdef BuildA52	
+F00:0348       		ifdef Mode2Color
+F00:0349       			incbin "./ResALL/Sprites/RawZX.RAW"
+F00:0350       		else
+F00:0351       			incbin "./ResALL/Sprites/RawA52.RAW"
+F00:0352       		endif
+F00:0353       	endif
+F00:0354       	Ifdef BuildA80
+F00:0355       		ifdef Mode2Color
+F00:0356       			incbin "./ResALL/Sprites/RawZX.RAW"
+F00:0357       		else
+F00:0358       			incbin "./ResALL/Sprites/RawA52.RAW"
+F00:0359       		endif
+F00:0360       	endif
+F00:0361       	ifdef BuildLNX
+F00:0362       		incbin "./ResALL/Sprites/RawMSX.RAW"
+F00:0363       	endif
+F00:0364       	ifdef BuildBBC
+F00:0365       		incbin "./ResALL/Sprites/RawBBC.RAW"
+F00:0366       	endif
+F00:0367       	ifdef BuildC64
+F00:0368       		ifdef Mode2Color
+F00:0369       			incbin "./ResAll/Sprites/RawC64-2col.RAW"
+F00:0370       		else
+F00:0371       			incbin "./ResAll/Sprites/RawC64-4col.RAW"
+               S02:00000ADA:  00 00 00 00 00 03 03 03 10 10 30 D0 D0 C0 CC 0C
+               S02:00000AEA:  03 01 03 0D 15 50 C4 5F 00 00 00 00 00 70 30 14
+F00:0372       		endif
+F00:0373       	endif
+F00:0374       	ifdef BuildNES
+F00:0375       		incbin "\ResALL\Sprites\RawNES.RAW"
+F00:0376       	endif
+F00:0377       	ifdef BuildPCE
+F00:0378       		incbin "\ResALL\Sprites\RawPCE.RAW"
+F00:0379       	endif
+F00:0380       	ifdef BuildSNS
+F00:0381       		incbin "\ResALL\Sprites\RawSNS.RAW"
+F00:0382       	endif
+F00:0383       BitmapEnd:
+F00:0384       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0385       	
+F00:0386       BitmapFont:
+F00:0387       	incbin "./ResAll/Font96.FNT"		;Not used by the VIC due to memory limitations
+               S02:00000BFA:  00 00 00 00 00 00 00 00 10 18 18 18 18 00 18 00
+               S02:00000C0A:  28 6C 28 00 00 00 00 00 00 28 7C 28 7C 28 00 00
+F00:0388       
+F00:0389       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0390       
+F00:0391       Palette:
+F00:0392       	;   -grb
+F00:0393       	dw $0000	;0 - Background;
+               S02:00000EFA:  00 00
+F00:0394       	dw $0099	;1
+               S02:00000EFC:  99 00
+F00:0395       	dw $0E0F	;2
+               S02:00000EFE:  0F 0E
+F00:0396       	dw $0FFF	;3 - Last color in 4 color modes
+               S02:00000F00:  FF 0F
+F00:0397       	dw $000F	;4;
+               S02:00000F02:  0F 00
+F00:0398       	dw $004F	;5
+               S02:00000F04:  4F 00
+F00:0399       	dw $008F	;6
+               S02:00000F06:  8F 00
+F00:0400       	dw $00AF	;7
+               S02:00000F08:  AF 00
+F00:0401       	dw $00FF	;8
+               S02:00000F0A:  FF 00
+F00:0402       	dw $04FF	;9
+               S02:00000F0C:  FF 04
+F00:0403       	dw $08FF	;10
+               S02:00000F0E:  FF 08
+F00:0404       	dw $0AFF	;11
+               S02:00000F10:  FF 0A
+F00:0405       	dw $0CCC	;12
+               S02:00000F12:  CC 0C
+F00:0406       	dw $0AAA	;13
+               S02:00000F14:  AA 0A
+F00:0407       	dw $0888	;14
+               S02:00000F16:  88 08
+F00:0408       	dw $0444	;15
+               S02:00000F18:  44 04
+F00:0409       	
+F00:0410       	
+F00:0411       	ifdef BuildNES	;Nes sprite colors
+F00:0412       		dw $0000	;0 - Background;
+F00:0413       		dw $0099	;1
+F00:0414       		dw $0E0F	;2
+F00:0415       		dw $0FF0	;3 - Last color in 4 color modes
+F00:0416       		dw $000F	;4;
+F00:0417       		dw $004F	;5
+F00:0418       		dw $008F	;6
+F00:0419       		dw $00AF	;7
+F00:0420       		dw $00FF	;8
+F00:0421       		dw $04FF	;9
+F00:0422       		dw $08FF	;10
+F00:0423       		dw $0AFF	;11
+F00:0424       		dw $0CCC	;12
+F00:0425       		dw $0AAA	;13
+F00:0426       		dw $0888	;14
+F00:0427       		dw $0444	;15
+F00:0428       		dw $0FFF	;Border
+F00:0429       	endif
+F00:0430       
+F00:0431       	
+F00:0432       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0433       
+F00:0434       	include "./SrcAll/V1_Functions.asm"		
+F10:0001       	ifdef BuildC64
+F10:0002       		include "..\SrcC64\V1_Functions.asm"
+F11:0001       
+F11:0002       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F11:0003       ScreenInit:
+F11:0004       
+F11:0005       
+F11:0006       		lda $D011
+               S02:00000F1A:  AD 11 D0
+F11:0007               and #%10011111
+               S02:00000F1D:  29 9F
+F11:0008               ora #%00100000
+               S02:00000F1F:  09 20
+F11:0009               sta $D011
+               S02:00000F21:  8D 11 D0
+F11:0010       
+F11:0011               lda $D016              
+               S02:00000F24:  AD 16 D0
+F11:0012               and #%11101111 
+               S02:00000F27:  29 EF
+F11:0013       	ifndef Mode2Color
+F11:0014               ora #%00010000  ;1=Multicolor 4 color ;0=standard 2 color        
+               S02:00000F29:  09 10
+F11:0015       	endif
+F11:0016               sta $D016
+               S02:00000F2B:  8D 16 D0
+F11:0017       
+F11:0018       
+F11:0019               lda $D018
+               S02:00000F2E:  AD 18 D0
+F11:0020               and #%11110111
+               S02:00000F31:  29 F7
+F11:0021               ora #%00001000  ;1=Screen at %2000 (Other bits have no function in bitmap mode)
+               S02:00000F33:  09 08
+F11:0022               sta $D018
+               S02:00000F35:  8D 18 D0
+F11:0023       		
+F11:0024       	
+F11:0025       	
+F11:0026       	
+F11:0027       
+F11:0028       	
+F11:0029       	; lda #<$D800
+F11:0030       	; sta z_E
+F11:0031       	; lda #>$D800
+F11:0032       	; sta z_D
+F11:0033       	
+F11:0034       	; lda #<($DBE7-$D800)
+F11:0035       	; sta z_C
+F11:0036       	; lda #>($DBE7-$D800)
+F11:0037       	; sta z_B
+F11:0038       	
+F11:0039       	; ldx #0
+F11:0040       ; FillNextScrA:
+F11:0041       	; lda #$0F
+F11:0042       	; sta (z_de,x)
+F11:0043       	; jsr DecBC
+F11:0044       	; jsr IncDE
+F11:0045       	; lda z_b
+F11:0046       	; ora z_c
+F11:0047       	; bne FillNextScrA
+F11:0048       
+F11:0049       	
+F11:0050       	
+F11:0051       
+F11:0052       	
+F11:0053       	; lda #<$0400
+F11:0054       	; sta z_E
+F11:0055       	; lda #>$0400
+F11:0056       	; sta z_D
+F11:0057       	
+F11:0058       	; lda #<($07E7-$0400)
+F11:0059       	; sta z_C
+F11:0060       	; lda #>($07E7-$0400)
+F11:0061       	; sta z_B
+F11:0062       	
+F11:0063       	; ldx #0
+F11:0064       ; FillNextScrB:
+F11:0065       	; lda #$EC
+F11:0066       	; sta (z_de,x)
+F11:0067       	; jsr DecBC
+F11:0068       	; jsr IncDE
+F11:0069       	; lda z_b
+F11:0070       	; ora z_c
+F11:0071       	; bne FillNextScrB
+F11:0072       
+F11:0073       	
+F11:0074       	rts
+               S02:00000F38:  60
+F11:0075       PrintChar:
+F11:0076       
+F11:0077       	clc
+               S02:00000F39:  18
+F11:0078       	sbc #31
+               S02:00000F3A:  E9 1F
+F11:0079       	
+F11:0080       	
+F11:0081       	
+F11:0082       	;lda #$8		;Char length
+F11:0083       	sta z_C
+               S02:00000F3C:  85 22
+F11:0084       	lda #$0
+               S02:00000F3E:  A9 00
+F11:0085       	sta z_B
+               S02:00000F40:  85 23
+F11:0086       	
+F11:0087       	PushAll
+F12:0001       		pha
+               S02:00000F42:  48
+F12:0002       		
+F12:0003       		txa
+               S02:00000F43:  8A
+F12:0004       		pha
+               S02:00000F44:  48
+F12:0005       		
+F12:0006       		tya 
+               S02:00000F45:  98
+F12:0007       		pha
+               S02:00000F46:  48
+F11:0088       	lda z_h
+               S02:00000F47:  A5 21
+F11:0089       	pha
+               S02:00000F49:  48
+F11:0090       	lda z_l
+               S02:00000F4A:  A5 20
+F11:0091       	pha
+               S02:00000F4C:  48
+F11:0092       	
+F11:0093       	
+F11:0094       	clc
+               S02:00000F4D:  18
+F11:0095       	rol z_C
+               S02:00000F4E:  26 22
+F11:0096       	rol z_B
+               S02:00000F50:  26 23
+F11:0097       	rol z_C
+               S02:00000F52:  26 22
+F11:0098       	rol z_B
+               S02:00000F54:  26 23
+F11:0099       	rol z_C
+               S02:00000F56:  26 22
+F11:0100       	rol z_B
+               S02:00000F58:  26 23
+F11:0101       	
+F11:0102       	
+F11:0103       	lda #<BitmapFont
+               S02:00000F5A:  A9 FA
+F11:0104       	sta z_L
+               S02:00000F5C:  85 20
+F11:0105       	lda #>BitmapFont
+               S02:00000F5E:  A9 0B
+F11:0106       	sta z_H
+               S02:00000F60:  85 21
+F11:0107       	
+F11:0108       	
+F11:0109       	
+F11:0110       	jsr addhl_bc;Select char
+               S02:00000F62:  20 7A 0A
+F11:0111       	
+F11:0112       	
+F11:0113       	
+F11:0114       	
+F11:0115       	
+F11:0116       
+F11:0117       	
+F11:0118       	lda #0
+               S02:00000F65:  A9 00
+F11:0119       	sta z_d
+               S02:00000F67:  85 25
+F11:0120       	lda Cursor_X
+               S02:00000F69:  A5 40
+F11:0121       	ifdef ScrWid256
+F11:0122       		clc
+F11:0123       		adc #4
+F11:0124       	endif
+F11:0125       	sta z_e
+               S02:00000F6B:  85 24
+F11:0126       	clc
+               S02:00000F6D:  18
+F11:0127       	rol z_e
+               S02:00000F6E:  26 24
+F11:0128       	rol z_d
+               S02:00000F70:  26 25
+F11:0129       	rol z_e
+               S02:00000F72:  26 24
+F11:0130       	rol z_d
+               S02:00000F74:  26 25
+F11:0131       	rol z_e
+               S02:00000F76:  26 24
+F11:0132       	rol z_d
+               S02:00000F78:  26 25
+F11:0133       	ifndef Mode2Color
+F11:0134       	ifndef HalfWidthFont
+F11:0135       		rol z_e
+               S02:00000F7A:  26 24
+F11:0136       		rol z_d
+               S02:00000F7C:  26 25
+F11:0137       	endif
+F11:0138       	endif
+F11:0139       	
+F11:0140       	lda #$01
+               S02:00000F7E:  A9 01
+F11:0141       	sta z_b
+               S02:00000F80:  85 23
+F11:0142       	lda #$40
+               S02:00000F82:  A9 40
+F11:0143       	sta z_c
+               S02:00000F84:  85 22
+F11:0144       ;	
+F11:0145       	lda Cursor_Y;
+               S02:00000F86:  A5 41
+F11:0146       	cmp #0
+               S02:00000F88:  C9 00
+F11:0147       	beq PrintChar_NoY
+               S02:00000F8A:  F0 07
+F11:0148       	tay
+               S02:00000F8C:  A8
+F11:0149       PrintChar_Yagain;
+F11:0150       	jsr AddDE_BC
+               S02:00000F8D:  20 A4 0A
+F11:0151       	dey
+               S02:00000F90:  88
+F11:0152       	bne PrintChar_Yagain
+               S02:00000F91:  D0 FA
+F11:0153       PrintChar_NoY
+F11:0154       	
+F11:0155       	lda #$20	;Screen Offset
+               S02:00000F93:  A9 20
+F11:0156       	sta z_b
+               S02:00000F95:  85 23
+F11:0157       	lda #$00
+               S02:00000F97:  A9 00
+F11:0158       	sta z_c
+               S02:00000F99:  85 22
+F11:0159       	jsr AddDE_BC
+               S02:00000F9B:  20 A4 0A
+F11:0160       
+F11:0161       	;ldx #0
+F11:0162       	ldy #0
+               S02:00000F9E:  A0 00
+F11:0163       PrintChar_Loop
+F11:0164       	ifndef Mode2Color
+F11:0165       		lda #0
+               S02:00000FA0:  A9 00
+F11:0166       		sta z_as
+               S02:00000FA2:  85 26
+F11:0167       	endif 
+F11:0168       	lda (z_HL),y
+               S02:00000FA4:  B1 20
+F11:0169       	ifndef Mode2Color
+F11:0170       	ifndef HalfWidthFont
+F11:0171       		clc
+               S02:00000FA6:  18
+F11:0172       		rol 
+               S02:00000FA7:  2A
+F11:0173       		rol z_as
+               S02:00000FA8:  26 26
+F11:0174       		rol z_as
+               S02:00000FAA:  26 26
+F11:0175       		rol 
+               S02:00000FAC:  2A
+F11:0176       		rol z_as
+               S02:00000FAD:  26 26
+F11:0177       		rol z_as
+               S02:00000FAF:  26 26
+F11:0178       		rol 
+               S02:00000FB1:  2A
+F11:0179       		rol z_as
+               S02:00000FB2:  26 26
+F11:0180       		rol z_as
+               S02:00000FB4:  26 26
+F11:0181       		rol 
+               S02:00000FB6:  2A
+F11:0182       		rol z_as
+               S02:00000FB7:  26 26
+F11:0183       		;rol z_as
+F11:0184       		
+F11:0185       		lda z_as
+               S02:00000FB9:  A5 26
+F11:0186       		rol
+               S02:00000FBB:  2A
+F11:0187       		ora z_as
+               S02:00000FBC:  05 26
+F11:0188       	endif
+F11:0189       	endif 
+F11:0190           sta (z_DE),y
+               S02:00000FBE:  91 24
+F11:0191       		
+F11:0192       	;jsr IncHL
+F11:0193       	;jsr IncDE
+F11:0194       	iny
+               S02:00000FC0:  C8
+F11:0195       	;dey 
+F11:0196       	tya
+               S02:00000FC1:  98
+F11:0197       	cmp #8
+               S02:00000FC2:  C9 08
+F11:0198       	bne PrintChar_Loop
+               S02:00000FC4:  D0 DA
+F11:0199       		
+F11:0200       	ifndef Mode2Color
+F11:0201       	ifndef HalfWidthFont
+F11:0202       		lda #0
+               S02:00000FC6:  A9 00
+F11:0203       		sta z_b
+               S02:00000FC8:  85 23
+F11:0204       		lda #8
+               S02:00000FCA:  A9 08
+F11:0205       		sta z_c
+               S02:00000FCC:  85 22
+F11:0206       		jsr AddDE_BC
+               S02:00000FCE:  20 A4 0A
+F11:0207       	
+F11:0208       	
+F11:0209       		;ldx #0
+F11:0210       		ldy #0
+               S02:00000FD1:  A0 00
+F11:0211       PrintChar_Loop2:
+F11:0212       		
+F11:0213       		lda #0
+               S02:00000FD3:  A9 00
+F11:0214       		sta z_as
+               S02:00000FD5:  85 26
+F11:0215       		lda (z_HL),Y
+               S02:00000FD7:  B1 20
+F11:0216       
+F11:0217       			clc
+               S02:00000FD9:  18
+F11:0218       			ror 
+               S02:00000FDA:  6A
+F11:0219       			ror z_as
+               S02:00000FDB:  66 26
+F11:0220       			ror z_as
+               S02:00000FDD:  66 26
+F11:0221       			ror 
+               S02:00000FDF:  6A
+F11:0222       			ror z_as
+               S02:00000FE0:  66 26
+F11:0223       			ror z_as
+               S02:00000FE2:  66 26
+F11:0224       			ror 
+               S02:00000FE4:  6A
+F11:0225       			ror z_as
+               S02:00000FE5:  66 26
+F11:0226       			ror z_as
+               S02:00000FE7:  66 26
+F11:0227       			ror 
+               S02:00000FE9:  6A
+F11:0228       			ror z_as
+               S02:00000FEA:  66 26
+F11:0229       			;rol z_as
+F11:0230       			
+F11:0231       			lda z_as
+               S02:00000FEC:  A5 26
+F11:0232       			ror
+               S02:00000FEE:  6A
+F11:0233       			ora z_as
+               S02:00000FEF:  05 26
+F11:0234       		sta (z_DE),Y
+               S02:00000FF1:  91 24
+F11:0235       			
+F11:0236       		;jsr IncHL
+F11:0237       		;jsr IncDE
+F11:0238       
+F11:0239       		iny
+               S02:00000FF3:  C8
+F11:0240       		;dey 
+F11:0241       		tya
+               S02:00000FF4:  98
+F11:0242       		cmp #8
+               S02:00000FF5:  C9 08
+F11:0243       		bne PrintChar_Loop2
+               S02:00000FF7:  D0 DA
+F11:0244       	endif
+F11:0245       	endif
+F11:0246       	
+F11:0247       	inc Cursor_X
+               S02:00000FF9:  E6 40
+F11:0248       	lda Cursor_X
+               S02:00000FFB:  A5 40
+F11:0249       	ifndef Mode2Color
+F11:0250       		ifndef HalfWidthFont
+F11:0251       			cmp #20
+               S02:00000FFD:  C9 14
+F11:0252       		else
+F11:0253       			cmp #40
+F11:0254       		endif
+F11:0255       	else
+F11:0256       		cmp #40
+F11:0257       	endif
+F11:0258       	bne PrintChar_NotNextLine
+               S02:00000FFF:  D0 03
+F11:0259       	jsr NewLine
+               S02:00001001:  20 15 10
+F11:0260       	
+F11:0261       	;lda #0
+F11:0262       	;sta Cursor_X
+F11:0263       	;inc Cursor_Y
+F11:0264       PrintChar_NotNextLine:
+F11:0265       	
+F11:0266       	
+F11:0267       	pla
+               S02:00001004:  68
+F11:0268       	sta z_l
+               S02:00001005:  85 20
+F11:0269       	pla
+               S02:00001007:  68
+F11:0270       	sta z_h	
+               S02:00001008:  85 21
+F11:0271       	PullAll
+F13:0001       		pla 
+               S02:0000100A:  68
+F13:0002       		tay
+               S02:0000100B:  A8
+F13:0003       		
+F13:0004       		pla
+               S02:0000100C:  68
+F13:0005       		tax
+               S02:0000100D:  AA
+F13:0006       		
+F13:0007       		pla
+               S02:0000100E:  68
+F11:0272       	
+F11:0273       	rts
+               S02:0000100F:  60
+F11:0274       
+F11:0275       Locate:
+F11:0276       	stx Cursor_X 
+               S02:00001010:  86 40
+F11:0277       	sty Cursor_Y
+               S02:00001012:  84 41
+F11:0278       	rts
+               S02:00001014:  60
+F11:0279       	
+F11:0280       NewLine:
+F11:0281       	lda #0
+               S02:00001015:  A9 00
+F11:0282       	sta Cursor_X	
+               S02:00001017:  85 40
+F11:0283       	inc Cursor_Y
+               S02:00001019:  E6 41
+F11:0284       	rts
+               S02:0000101B:  60
+F11:0285       	
+F11:0286       	
+F11:0287       Cls:
+F11:0288       	lda #$00
+               S02:0000101C:  A9 00
+F11:0289       		sta z_L
+               S02:0000101E:  85 20
+F11:0290       		
+F11:0291       		lda #$04
+               S02:00001020:  A9 04
+F11:0292       		sta z_H
+               S02:00001022:  85 21
+F11:0293       		
+F11:0294       		
+F11:0295       		lda #$EF
+               S02:00001024:  A9 EF
+F11:0296       		sta z_C
+               S02:00001026:  85 22
+F11:0297       		
+F11:0298       		lda #$03
+               S02:00001028:  A9 03
+F11:0299       		sta z_B
+               S02:0000102A:  85 23
+F11:0300       		
+F11:0301       		lda #$2E
+               S02:0000102C:  A9 2E
+F11:0302       		
+F11:0303       		jsr CLDIR
+               S02:0000102E:  20 01 0A
+F11:0304       		
+F11:0305       	ifndef Mode2Color		
+F11:0306       		lda #$00
+               S02:00001031:  A9 00
+F11:0307       		sta z_L
+               S02:00001033:  85 20
+F11:0308       		
+F11:0309       		lda #$D8
+               S02:00001035:  A9 D8
+F11:0310       		sta z_H
+               S02:00001037:  85 21
+F11:0311       		
+F11:0312       				
+F11:0313       		lda #$EF
+               S02:00001039:  A9 EF
+F11:0314       		sta z_C
+               S02:0000103B:  85 22
+F11:0315       		
+F11:0316       		lda #$03
+               S02:0000103D:  A9 03
+F11:0317       		sta z_B
+               S02:0000103F:  85 23
+F11:0318       		
+F11:0319       		lda #$07
+               S02:00001041:  A9 07
+F11:0320       		
+F11:0321       		jsr CLDIR
+               S02:00001043:  20 01 0A
+F11:0322       		
+F11:0323       	endif
+F11:0324       
+F11:0325       		loadpair z_hl,$2000
+F14:0001       		lda #<$2000
+               S02:00001046:  A9 00
+F14:0002       		sta z_hl
+               S02:00001048:  85 20
+F14:0003       		lda #>$2000
+               S02:0000104A:  A9 20
+F14:0004       		sta z_hl+1
+               S02:0000104C:  85 21
+F11:0326       		loadpair z_bc,($2000-1)
+F15:0001       		lda #<($2000-1)
+               S02:0000104E:  A9 FF
+F15:0002       		sta z_bc
+               S02:00001050:  85 22
+F15:0003       		lda #>($2000-1)
+               S02:00001052:  A9 1F
+F15:0004       		sta z_bc+1
+               S02:00001054:  85 23
+F11:0327       		
+F11:0328       		lda #0
+               S02:00001056:  A9 00
+F11:0329       		jmp cLdir
+               S02:00001058:  4C 01 0A
+F11:0330       	
+F11:0331       		
+F11:0332       				
+F11:0333       		ldx #0
+               S02:0000105B:  A2 00
+F11:0334       		ldy #0
+               S02:0000105D:  A0 00
+F11:0335       		jsr Locate
+               S02:0000105F:  20 10 10
+F11:0336               rts
+               S02:00001062:  60
+F10:0003       	endif
+F10:0004       	ifdef BuildVIC
+F10:0005       		include "..\SrcVIC\V1_Functions.asm"
+F10:0006       	endif
+F10:0007       	ifdef BuildBBC
+F10:0008       		include "..\SrcBBC\V1_Functions.asm"
+F10:0009       	endif
+F10:0010       	ifdef BuildAP2
+F10:0011       		include "..\SrcAP2\V1_Functions.asm"
+F10:0012       	endif
+F10:0013       	ifdef BuildLNX
+F10:0014       		include "..\SrcLNX\V1_Functions.asm"
+F10:0015       	endif
+F10:0016       	ifdef BuildPCE
+F10:0017       		include "..\SrcPCE\V1_Functions.asm"
+F10:0018       	endif
+F10:0019       	ifdef BuildNES
+F10:0020       		include "..\SrcNES\V1_Functions.asm"
+F10:0021       	endif
+F10:0022       	ifdef BuildSNS
+F10:0023       		include "..\SrcSNS\V1_Functions.asm"
+F10:0024       	endif
+F10:0025       	ifdef BuildA52
+F10:0026       		include "\SrcA52\V1_Functions.asm"
+F10:0027       	endif
+F10:0028       	ifdef BuildA80
+F10:0029       		include "\SrcA52\V1_Functions.asm"
+F10:0030       	endif
+F00:0435       	include "./SrcAll/V1_BitmapMemory.asm"
+F16:0001       	ifdef BuildC64
+F16:0002       		include "./SrcC64/C64_V1_BitmapMemory.asm"
+F17:0001       ;Color Ram  11011000 - 11011011
+F17:0002       ;Color Regs 00000100 - 00000111
+F17:0003       
+F17:0004       ;BG $D020
+F17:0005       ;Border $D021
+F17:0006       
+F17:0007       GetColMemPos:
+F17:0008       	
+F17:0009       	
+F17:0010       	lda #0
+               S02:00001063:  A9 00
+F17:0011       	sta z_d
+               S02:00001065:  85 25
+F17:0012       	sta z_h
+               S02:00001067:  85 21
+F17:0013       	txa
+               S02:00001069:  8A
+F17:0014       	sta z_e
+               S02:0000106A:  85 24
+F17:0015       
+F17:0016       	tya
+               S02:0000106C:  98
+F17:0017       	and #%11111000
+               S02:0000106D:  29 F8
+F17:0018       	
+F17:0019       	tax ;sta z_c
+               S02:0000106F:  AA
+F17:0020       		;jsr AddDE_BC
+F17:0021       		;clc
+F17:0022       		;lda z_c
+F17:0023       		adc z_e
+               S02:00001070:  65 24
+F17:0024       		sta z_e
+               S02:00001072:  85 24
+F17:0025       		lda z_h
+               S02:00001074:  A5 21
+F17:0026       		
+F17:0027       		adc z_d
+               S02:00001076:  65 25
+F17:0028       		sta z_d
+               S02:00001078:  85 25
+F17:0029       	
+F17:0030       	txa ;lda z_c
+               S02:0000107A:  8A
+F17:0031       	rol
+               S02:0000107B:  2A
+F17:0032       	rol z_h
+               S02:0000107C:  26 21
+F17:0033       	rol
+               S02:0000107E:  2A
+F17:0034       	rol z_h
+               S02:0000107F:  26 21
+F17:0035       	
+F17:0036       	ifdef ScrWid256
+F17:0037       		adc #$04
+F17:0038       	endif
+F17:0039       	
+F17:0040       		adc z_e
+               S02:00001081:  65 24
+F17:0041       		sta z_e
+               S02:00001083:  85 24
+F17:0042       		lda z_h
+               S02:00001085:  A5 21
+F17:0043       		adc #$04	;Screen Offset
+               S02:00001087:  69 04
+F17:0044       		adc z_d
+               S02:00001089:  65 25
+F17:0045       		sta z_d
+               S02:0000108B:  85 25
+F17:0046       	
+F17:0047       	;clc
+F17:0048       	;ror
+F17:0049       	;ror
+F17:0050       	;ror
+F17:0051       	;cmp #0
+F17:0052       	;beq GetScreenPosC_NoY
+F17:0053       	;tay
+F17:0054       ;GetScreenPosC_Yagain;
+F17:0055       ;	jsr AddDE_BC
+F17:0056       ;	dey
+F17:0057       ;	bne GetScreenPosC_Yagain
+F17:0058       ;GetScreenPosC_NoY
+F17:0059       	
+F17:0060       	
+F17:0061       	
+F17:0062       ;	pullpair z_bc
+F17:0063       	
+F17:0064       	rts
+               S02:0000108D:  60
+F17:0065       
+F17:0066       
+F17:0067       
+F17:0068       GetScreenPos:
+F17:0069       	
+F17:0070       	pushpair z_bc
+F18:0001       		lda z_bc			
+               S02:0000108E:  A5 22
+F18:0002       		pha				;Push lower Zpage entry
+               S02:00001090:  48
+F18:0003       		lda z_bc+1
+               S02:00001091:  A5 23
+F18:0004       		pha
+               S02:00001093:  48
+F17:0071       	
+F17:0072       	
+F17:0073       	lda #0
+               S02:00001094:  A9 00
+F17:0074       	sta z_d
+               S02:00001096:  85 25
+F17:0075       	txa
+               S02:00001098:  8A
+F17:0076       	;sta ;z_e
+F17:0077       	clc
+               S02:00001099:  18
+F17:0078       	rol ;z_e
+               S02:0000109A:  2A
+F17:0079       	rol z_d
+               S02:0000109B:  26 25
+F17:0080       	rol ;z_e
+               S02:0000109D:  2A
+F17:0081       	rol z_d
+               S02:0000109E:  26 25
+F17:0082       	rol ;z_e
+               S02:000010A0:  2A
+F17:0083       	rol z_d
+               S02:000010A1:  26 25
+F17:0084       	ifdef FourColor
+F17:0085       		;rol z_e
+F17:0086       		rol z_d
+F17:0087       	endif
+F17:0088       	sta z_e
+               S02:000010A3:  85 24
+F17:0089       	
+F17:0090       	
+F17:0091       ;	lda #$01
+F17:0092       ;	sta z_b
+F17:0093       ;	lda #$40
+F17:0094       ;	sta z_c
+F17:0095       ;	
+F17:0096       	lda #0
+               S02:000010A5:  A9 00
+F17:0097       	sta z_b
+               S02:000010A7:  85 23
+F17:0098       	tya
+               S02:000010A9:  98
+F17:0099       	and #%11111000
+               S02:000010AA:  29 F8
+F17:0100       	clc
+               S02:000010AC:  18
+F17:0101       	rol
+               S02:000010AD:  2A
+F17:0102       	rol z_b
+               S02:000010AE:  26 23
+F17:0103       	rol
+               S02:000010B0:  2A
+F17:0104       	rol z_b
+               S02:000010B1:  26 23
+F17:0105       	rol
+               S02:000010B3:  2A
+F17:0106       	rol z_b
+               S02:000010B4:  26 23
+F17:0107       	tax ;sta z_c
+               S02:000010B6:  AA
+F17:0108       		;jsr AddDE_BC
+F17:0109       		;clc
+F17:0110       		;lda z_c
+F17:0111       		adc z_e
+               S02:000010B7:  65 24
+F17:0112       		sta z_e
+               S02:000010B9:  85 24
+F17:0113       		lda z_b
+               S02:000010BB:  A5 23
+F17:0114       		
+F17:0115       		adc z_d
+               S02:000010BD:  65 25
+F17:0116       		sta z_d
+               S02:000010BF:  85 25
+F17:0117       	
+F17:0118       	txa ;lda z_c
+               S02:000010C1:  8A
+F17:0119       	rol
+               S02:000010C2:  2A
+F17:0120       	rol z_b
+               S02:000010C3:  26 23
+F17:0121       	rol
+               S02:000010C5:  2A
+F17:0122       	rol z_b
+               S02:000010C6:  26 23
+F17:0123       	;sta z_c
+F17:0124       		;jsr AddDE_BC
+F17:0125       		;clc
+F17:0126       		;lda z_c
+F17:0127       		adc z_e
+               S02:000010C8:  65 24
+F17:0128       		sta z_e
+               S02:000010CA:  85 24
+F17:0129       		lda z_b
+               S02:000010CC:  A5 23
+F17:0130       		
+F17:0131       		adc z_d
+               S02:000010CE:  65 25
+F17:0132       		sta z_d
+               S02:000010D0:  85 25
+F17:0133       	
+F17:0134       ;	cmp #0
+F17:0135       	;beq GetScreenPos_NoY
+F17:0136       ;	tay
+F17:0137       ;GetScreenPos_Yagain
+F17:0138       	;jsr AddDE_BC
+F17:0139       	;dey
+F17:0140       ;	bne GetScreenPos_Yagain
+F17:0141       ;GetScreenPos_NoY
+F17:0142       	
+F17:0143       	lda #$20	;Screen Offset
+               S02:000010D2:  A9 20
+F17:0144       	sta z_b
+               S02:000010D4:  85 23
+F17:0145       	ifdef ScrWid256
+F17:0146       		lda #$04*8
+F17:0147       	else
+F17:0148       		lda #$00
+               S02:000010D6:  A9 00
+F17:0149       	endif
+F17:0150       	
+F17:0151       	sta z_c
+               S02:000010D8:  85 22
+F17:0152       	jsr AddDE_BC
+               S02:000010DA:  20 A4 0A
+F17:0153       
+F17:0154       	
+F17:0155       	pullpair z_bc
+F19:0001       		pla
+               S02:000010DD:  68
+F19:0002       		sta z_bc+1		;Pull lower Zpage entry
+               S02:000010DE:  85 23
+F19:0003       		pla
+               S02:000010E0:  68
+F19:0004       		sta z_bc			;Pull higher Zpage entry
+               S02:000010E1:  85 22
+F17:0156       	
+F17:0157       	rts
+               S02:000010E3:  60
+F17:0158       	
+F17:0159       GetNextLine:
+F17:0160       	rts
+               S02:000010E4:  60
+F17:0161       		 pushpair z_bc
+F20:0001       		lda z_bc			
+               S02:000010E5:  A5 22
+F20:0002       		pha				;Push lower Zpage entry
+               S02:000010E7:  48
+F20:0003       		lda z_bc+1
+               S02:000010E8:  A5 23
+F20:0004       		pha
+               S02:000010EA:  48
+F17:0162       			 lda #$00
+               S02:000010EB:  A9 00
+F17:0163       			 sta z_b
+               S02:000010ED:  85 23
+F17:0164       			 lda #40
+               S02:000010EF:  A9 28
+F17:0165       			 sta z_c
+               S02:000010F1:  85 22
+F17:0166       			 jsr AddDE_BC
+               S02:000010F3:  20 A4 0A
+F17:0167       		 pullpair z_bc
+F21:0001       		pla
+               S02:000010F6:  68
+F21:0002       		sta z_bc+1		;Pull lower Zpage entry
+               S02:000010F7:  85 23
+F21:0003       		pla
+               S02:000010F9:  68
+F21:0004       		sta z_bc			;Pull higher Zpage entry
+               S02:000010FA:  85 22
+F17:0168       	rts
+               S02:000010FC:  60
+F16:0003       	endif
+F16:0004       	
+F16:0005       
+F00:0436       	include "./SrcAll/V1_Palette.asm"
+F22:0001       	Ifdef BuildA52
+F22:0002       		include "\SrcA52\A52_V1_Palette.asm"
+F22:0003       	endif
+F22:0004       	Ifdef BuildA80
+F22:0005       		include "\SrcA52\A52_V1_Palette.asm"
+F22:0006       	endif
+F22:0007       	ifdef BuildLNX
+F22:0008       		include "\SrcLNX\LNX_V1_Palette.asm"
+F22:0009       	endif
+F22:0010       	ifdef BuildPCE
+F22:0011       		include "\SrcPCE\PCE_V1_Palette.asm"
+F22:0012       	endif
+F22:0013       	ifdef BuildNES
+F22:0014       		include "\SrcNES\NES_V1_Palette.asm"
+F22:0015       	endif
+F22:0016       	
+F22:0017       	ifdef BuildBBC
+F22:0018       		include "\SrcBBC\BBC_V1_Palette.asm"
+F22:0019       	endif
+F22:0020       	ifdef BuildSNS
+F22:0021       		include "\SrcSNS\SNS_V1_Palette.asm"
+F22:0022       	endif
+F22:0023       	ifdef BuildC64
+F22:0024       SetPalette:
+F22:0025       	rts
+               S02:000010FD:  60
+F22:0026       	endif
+F22:0027       	ifdef BuildVIC
+F22:0028       SetPalette:
+F22:0029       	rts
+F22:0030       	endif
+F22:0031       	ifdef BuildAP2
+F22:0032       SetPalette:
+F22:0033       	rts
+F22:0034       	endif
+F22:0035       	
+F22:0036       
+F00:0437       	include "./SrcAll/V1_VdpMemory.asm"
+F23:0001       	ifdef BuildC64
+F23:0002       		include "./SrcC64/C64_V1_VdpMemory.asm"
+F24:0001       
+F24:0002       SetHardwareSprite:
+F24:0003       		tay		;Sprite Number
+               S02:000010FE:  A8
+F24:0004       		lda $D015
+               S02:000010FF:  AD 15 D0
+F24:0005       		ora LookupBits,y
+               S02:00001102:  19 9C 09
+F24:0006       		sta $D015			;Sprite on
+               S02:00001105:  8D 15 D0
+F24:0007       		
+F24:0008       		lda #%00010000
+               S02:00001108:  A9 10
+F24:0009       		jsr C64SpriteConvertToMask
+               S02:0000110A:  20 5B 11
+F24:0010       		jsr monitor
+               S02:0000110D:  20 28 09
+F24:0011       		lda $D01C
+               S02:00001110:  AD 1C D0
+F24:0012       		ora z_as
+               S02:00001113:  05 26
+F24:0013       		sta $D01C			;4 color
+               S02:00001115:  8D 1C D0
+F24:0014       		
+F24:0015       		lda #%00100000
+               S02:00001118:  A9 20
+F24:0016       		jsr C64SpriteConvertToMask
+               S02:0000111A:  20 5B 11
+F24:0017       		lda $D017
+               S02:0000111D:  AD 17 D0
+F24:0018       		ora z_as
+               S02:00001120:  05 26
+F24:0019       		sta $D017			;DoubleHeight
+               S02:00001122:  8D 17 D0
+F24:0020       		
+F24:0021       		
+F24:0022       		lda #%01000000
+               S02:00001125:  A9 40
+F24:0023       		jsr C64SpriteConvertToMask
+               S02:00001127:  20 5B 11
+F24:0024       		lda $D01D
+               S02:0000112A:  AD 1D D0
+F24:0025       		ora z_as
+               S02:0000112D:  05 26
+F24:0026       		sta $D01D			;DoubleWidth
+               S02:0000112F:  8D 1D D0
+F24:0027       		
+F24:0028       		
+F24:0029       		; sta $D01D		;Double Width
+F24:0030       		; sta $D017		;Double height
+F24:0031       		
+F24:0032       		
+F24:0033       		lda z_h
+               S02:00001132:  A5 21
+F24:0034       		sta $07F8,y			;Pointer
+               S02:00001134:  99 F8 07
+F24:0035       		
+F24:0036       		lda z_l
+               S02:00001137:  A5 20
+F24:0037       		and #%00001111
+               S02:00001139:  29 0F
+F24:0038       		sta $D027,y			;Color
+               S02:0000113B:  99 27 D0
+F24:0039       		
+F24:0040       		
+F24:0041       		lda #%00000001
+               S02:0000113E:  A9 01
+F24:0042       		and z_ixh
+               S02:00001140:  25 29
+F24:0043       		jsr C64SpriteConvertToMaskB
+               S02:00001142:  20 5D 11
+F24:0044       		lda $D010
+               S02:00001145:  AD 10 D0
+F24:0045       		ora z_as
+               S02:00001148:  05 26
+F24:0046       		sta $D010 		;8th bit of X
+               S02:0000114A:  8D 10 D0
+F24:0047       
+F24:0048       		
+F24:0049       		
+F24:0050       		tya			;Double Y
+               S02:0000114D:  98
+F24:0051       		asl
+               S02:0000114E:  0A
+F24:0052       		tay
+               S02:0000114F:  A8
+F24:0053       		
+F24:0054       		lda z_ixl
+               S02:00001150:  A5 28
+F24:0055       		sta $D000,y		;X
+               S02:00001152:  99 00 D0
+F24:0056       				
+F24:0057       		lda z_iyl
+               S02:00001155:  A5 2A
+F24:0058       		sta $D001,y		;Y
+               S02:00001157:  99 01 D0
+F24:0059       		 
+F24:0060       		rts
+               S02:0000115A:  60
+F24:0061       		 
+F24:0062       C64SpriteConvertToMask:
+F24:0063       		and z_l
+               S02:0000115B:  25 20
+F24:0064       C64SpriteConvertToMaskB:
+F24:0065       		beq C64SpriteConvertToMaskZero 
+               S02:0000115D:  F0 06
+F24:0066       		lda LookupBits,y
+               S02:0000115F:  B9 9C 09
+F24:0067       		
+F24:0068       		jmp C64SpriteConvertToMaskDone
+               S02:00001162:  4C 67 11
+F24:0069       C64SpriteConvertToMaskZero:
+F24:0070       		lda #0
+               S02:00001165:  A9 00
+F24:0071       C64SpriteConvertToMaskDone:
+F24:0072       		sta z_as
+               S02:00001167:  85 26
+F24:0073       		rts
+               S02:00001169:  60
+F23:0003       	endif
+F23:0004       
+F23:0005       
+F00:0438       	; ifdef BuildSNS
+F00:0439       		; include "\SrcSNS\SNS_V1_VdpMemory.asm"
+F00:0440       	; endif
+F00:0441       	; ifdef BuildVIC
+F00:0442       		; include "\SrcVIC\VIC_V1_VdpMemory.asm"
+F00:0443       	; endif	
+F00:0444       	; ifdef BuildPCE
+F00:0445       		; include "\SrcPCE\PCE_V1_VdpMemory.asm"
+F00:0446       	; endif
+F00:0447       	; ifdef BuildNES
+F00:0448       		; include "\SrcNES\NES_V1_VdpMemory.asm"
+F00:0449       	; endif
+F00:0450       	; ifdef BuildC64
+F00:0451       		; include "./SrcC64/C64_V1_VdpMemory.asm"
+F00:0452       	; endif
+F00:0453       	; Ifdef BuildA52
+F00:0454       		; include "\SrcA52\A52_V1_Palette.asm"
+F00:0455       	; endif
+F00:0456       	; Ifdef BuildA80
+F00:0457       		; include "\SrcA52\A52_V1_Palette.asm"
+F00:0458       	; endif
+F00:0459       	; ifdef BuildLNX
+F00:0460       		; include "\SrcLNX\LNX_V1_Palette.asm"
+F00:0461       	; endif
+F00:0462       	; ifdef BuildPCE
+F00:0463       		; include "\SrcPCE\PCE_V1_Palette.asm"
+F00:0464       	; endif
+F00:0465       	; ifdef BuildNES
+F00:0466       		; include "\SrcNES\NES_V1_Palette.asm"
+F00:0467       	; endif
+F00:0468       	; Ifdef BuildAP2
+F00:0469       		; include "\SrcAP2\AP2_V1_Palette.asm"
+F00:0470       	; endif
+F00:0471       	; ifdef BuildBBC
+F00:0472       		; include "\SrcBBC\BBC_V1_Palette.asm"
+F00:0473       	; endif
+F00:0474       	; ifdef BuildSNS
+F00:0475       		; include "\SrcSNS\SNS_V1_Palette.asm"
+F00:0476       	; endif
+F00:0477       	; ifdef BuildC64
+F00:0478       ; SetPalette:
+F00:0479       	; rts
+F00:0480       	; endif
+F00:0481       	; ifdef BuildVIC
+F00:0482       ; SetPalette:
+F00:0483       	; rts
+F00:0484       	; endif
+F00:0485       		
+F00:0486       		
+F00:0487       		
+F00:0488       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+F00:0489       		ifdef BuildVIC
+F00:0490       		ifndef BuildVIC_Rom
+F00:0491       			org $1C00
+F00:0492       			db 0,0,0,0,0,0,0,0	;Set Char 0 to blank
+F00:0493       			incbin "\ResAll\Sprites\RawVIC.raw"
+F00:0494       		endif
+F00:0495       		endif
+F00:0496       		
+F00:0497       		include "..\SrcAll\V1_Footer.asm"
+F25:0001       	ifdef BuildPCE
+F25:0002       		include "..\SrcPCE\V1_Footer.asm"
+F25:0003       	endif
+F25:0004       	ifdef BuildNES
+F25:0005       		include "..\SrcNES\V1_Footer.asm"
+F25:0006       	endif
+F25:0007       		
+F25:0008       	ifdef BuildSNS
+F25:0009       		include "..\SrcSNS\V1_Footer.asm"
+F25:0010       	endif
+F25:0011       			
+F25:0012       	ifdef BuildA52
+F25:0013       		include "..\SrcA52\V1_Footer.asm"
+F25:0014       	endif
+F25:0015       	ifdef BuildA80
+F25:0016       		include "..\SrcA52\V1_Footer.asm"
+F25:0017       	endif
+F25:0018       	ifdef BuildBBC
+F25:0019       		include "..\SrcBBC\V1_Footer.asm"
+F25:0020       	endif
+F00:0498       		
+F00:0499        
+F00:0500       
+
+
+Sections:
+S01  seg801
+S02  seg810
+
+
+Sources:
+F00  BmpTest.asm
+F01  ./SrcAll/V1_Header.asm
+F02  ./SrcC64/V1_Header.asm
+F03  ./SrcAll/BasicMacros.asm
+F04  PushAll
+F05  PushAll
+F06  PullAll
+F07  PullAll
+F08  ./SrcAll/Monitor.asm
+F09  ./SrcAll/BasicFunctions.asm
+F10  ./SrcAll/V1_Functions.asm
+F11  ../SrcC64/V1_Functions.asm
+F12  PushAll
+F13  PullAll
+F14  LoadPair
+F15  LoadPair
+F16  ./SrcAll/V1_BitmapMemory.asm
+F17  ./SrcC64/C64_V1_BitmapMemory.asm
+F18  PushPair
+F19  PullPair
+F20  PushPair
+F21  PullPair
+F22  ./SrcAll/V1_Palette.asm
+F23  ./SrcAll/V1_VdpMemory.asm
+F24  ./SrcC64/C64_V1_VdpMemory.asm
+F25  ../SrcAll/V1_Footer.asm
+
+
+Symbols:
+C64SpriteConvertToMaskDone EXPR(4455=0x1167) ABS 
+C64SpriteConvertToMaskZero EXPR(4453=0x1165) ABS 
+C64SpriteConvertToMaskB EXPR(4445=0x115d) ABS 
+C64SpriteConvertToMask EXPR(4443=0x115b) ABS 
+SetHardwareSprite EXPR(4350=0x10fe) UNUSED ABS 
+GetNextLine EXPR(4324=0x10e4) UNUSED ABS 
+GetColMemPos EXPR(4195=0x1063) UNUSED ABS 
+Locate EXPR(4112=0x1010) ABS 
+PrintChar_NotNextLine EXPR(4100=0x1004) ABS 
+PrintChar_Loop2 EXPR(4051=0xfd3) ABS 
+PrintChar_Loop EXPR(4000=0xfa0) ABS 
+PrintChar_Yagain EXPR(3981=0xf8d) ABS 
+PrintChar_NoY EXPR(3987=0xf93) ABS 
+BitmapFont EXPR(3066=0xbfa) ABS 
+BitmapEnd EXPR(3066=0xbfa) UNUSED ABS 
+SwapNibbles EXPR(2738=0xab2) UNUSED ABS 
+AddDE_BC EXPR(2724=0xaa4) ABS 
+SubHL_DE EXPR(2710=0xa96) UNUSED ABS 
+SubHL_BC EXPR(2696=0xa88) UNUSED ABS 
+AddHL_BC EXPR(2682=0xa7a) ABS 
+AddHL_DE EXPR(2664=0xa68) UNUSED ABS 
+DecDE_D EXPR(2660=0xa64) ABS 
+DecDE EXPR(2653=0xa5d) UNUSED ABS 
+DecHL_h EXPR(2649=0xa59) ABS 
+DecHL EXPR(2642=0xa52) UNUSED ABS 
+DecBC_b EXPR(2638=0xa4e) ABS 
+IncHL_Done EXPR(2630=0xa46) ABS 
+IncHL EXPR(2624=0xa40) UNUSED ABS 
+IncDE_Done EXPR(2623=0xa3f) ABS 
+IncDE EXPR(2617=0xa39) UNUSED ABS 
+IncBC_Done EXPR(2616=0xa38) ABS 
+IncBC EXPR(2610=0xa32) UNUSED ABS 
+LDIR_Done EXPR(2609=0xa31) ABS 
+LDIR_SkipInc2 EXPR(2596=0xa24) ABS 
+LDIR_SkipInc1 EXPR(2590=0xa1e) ABS 
+LDIR EXPR(2578=0xa12) ABS 
+CLDIR EXPR(2561=0xa01) ABS 
+GetPos EXPR(2553=0x9f9) UNUSED ABS 
+SwapXY EXPR(2544=0x9f0) ABS 
+WaitChar_Again EXPR(2532=0x9e4) ABS 
+WaitChar EXPR(2530=0x9e2) UNUSED ABS 
+PrintString_Done EXPR(2529=0x9e1) ABS 
+PrintString_again EXPR(2516=0x9d4) ABS 
+printhex_OverNine EXPR(2507=0x9cb) ABS 
+printhexAgain EXPR(2496=0x9c0) ABS 
+LookupMaskBits EXPR(2468=0x9a4) UNUSED ABS 
+Bit7 EXPR(2467=0x9a3) UNUSED EQU 
+Bit6 EXPR(2466=0x9a2) UNUSED EQU 
+Bit5 EXPR(2465=0x9a1) UNUSED EQU 
+Bit4 EXPR(2464=0x9a0) UNUSED EQU 
+Bit3 EXPR(2463=0x99f) UNUSED EQU 
+Bit2 EXPR(2462=0x99e) UNUSED EQU 
+Bit1 EXPR(2461=0x99d) UNUSED EQU 
+Bit0 EXPR(2460=0x99c) UNUSED EQU 
+LookupBits EXPR(2460=0x99c) ABS 
+t_Y EXPR(45=0x2d) UNUSED EQU 
+t_X EXPR(44=0x2c) UNUSED EQU 
+t_A EXPR(43=0x2b) EQU 
+t_SP EXPR(40=0x28) UNUSED EQU 
+z_spec EXPR(44=0x2c) UNUSED EQU 
+z_iy EXPR(42=0x2a) UNUSED EQU 
+z_iyh EXPR(43=0x2b) UNUSED EQU 
+z_iyl EXPR(42=0x2a) EQU 
+z_ix EXPR(40=0x28) UNUSED EQU 
+z_ixh EXPR(41=0x29) EQU 
+z_ixl EXPR(40=0x28) EQU 
+z_Hs EXPR(39=0x27) UNUSED EQU 
+z_As EXPR(38=0x26) EQU 
+z_BC EXPR(34=0x22) EQU 
+printmonitorhex EXPR(2452=0x994) ABS 
+printmonitorchar EXPR(2444=0x98c) ABS 
+MemDump_CarryOn EXPR(2335=0x91f) UNUSED ABS 
+MemDump_AgainCharRet EXPR(2323=0x913) ABS 
+MemDump_BadChar EXPR(2339=0x923) ABS 
+MemDump_AgainChar EXPR(2313=0x909) ABS 
+MemDump_AgainHex EXPR(2295=0x8f7) ABS 
+MemDump_Again EXPR(2293=0x8f5) ABS 
+t_MemdumpBL EXPR(48=0x30) EQU 
+printhex EXPR(2476=0x9ac) ABS 
+t_MemdumpBH EXPR(49=0x31) EQU 
+MemDumpDirect EXPR(2267=0x8db) UNUSED ABS 
+MemDump_NoIncSpH EXPR(2261=0x8d5) ABS 
+MemDumpDirectB EXPR(2269=0x8dd) ABS 
+t_MemdumpH EXPR(47=0x2f) EQU 
+t_MemdumpL EXPR(46=0x2e) EQU 
+t_RetAddr EXPR(41=0x29) EQU 
+t_RetAddrH EXPR(42=0x2a) EQU 
+t_RetAddrL EXPR(41=0x29) EQU 
+MemDump EXPR(2206=0x89e) UNUSED ABS 
+z_b EXPR(35=0x23) EQU 
+decbc EXPR(2631=0xa47) ABS 
+Pause EXPR(2196=0x894) ABS 
+ *current pc dummy* EXPR(2193=0x891) INTERNAL PROT ABS 
+SetPalette EXPR(4349=0x10fd) ABS 
+SetPaletteAgain EXPR(2170=0x87a) ABS 
+newline EXPR(4117=0x1015) ABS 
+z_e EXPR(36=0x24) EQU 
+z_d EXPR(37=0x25) EQU 
+Palette EXPR(3834=0xefa) ABS 
+addHL_0C EXPR(2678=0xa76) ABS 
+z_C EXPR(34=0x22) EQU 
+z_de EXPR(36=0x24) EQU 
+z_hl EXPR(32=0x20) EQU 
+BitmapNextByte EXPR(2119=0x847) ABS 
+BitmapNextLine EXPR(2112=0x840) UNUSED ABS 
+GetScreenPos EXPR(4238=0x108e) ABS 
+NexBitmapNextStrip EXPR(2104=0x838) ABS 
+Bitmap EXPR(2778=0xada) ABS 
+BMPBBC EXPR(1=0x1) UNUSED EQU 
+bmpwidth EXPR(3=0x3) EQU 
+PrintString EXPR(2514=0x9d2) ABS 
+z_H EXPR(33=0x21) EQU 
+z_L EXPR(32=0x20) EQU 
+MyText EXPR(2747=0xabb) ABS 
+Monitor EXPR(2344=0x928) ABS 
+printchar EXPR(3897=0xf39) ABS 
+Cls EXPR(4124=0x101c) ABS 
+ScreenInit EXPR(3866=0xf1a) ABS 
+SPpage EXPR(256=0x100) EQU 
+Cursor_Y EXPR(65=0x41) EQU 
+Cursor_X EXPR(64=0x40) EQU 
+z_Regs EXPR(32=0x20) EQU 
+__RPTCNT EXPR(-1=0xffff) INTERNAL 
+__VASM EXPR(0=0x0) INTERNAL 
+BuildC64 EXPR(1=0x1) UNUSED 
+vasm EXPR(1=0x1) UNUSED 
+__UNIXFS EXPR(0=0x0) INTERNAL 
+
+There have been no errors.
