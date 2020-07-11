@@ -1,15 +1,19 @@
 # c64-assembly
 A 6502-based Commodore 64 assembly language repo for OSX and Ubuntu.  This is a very small and targeted OSX and Ubuntu port based on the original work of Chibi Akumas.
 
-## Component List
-[vasm](http://sun.hasenbraten.de/vasm/index.php?view=source)
-[VICE](https://vice-emu.sourceforge.io)
+## Download
+[vasm](http://sun.hasenbraten.de/vasm/index.php?view=source)<br>
+[VICE *OSX*](https://vice-emu.sourceforge.io/index.html#download)<br>
+[VICE *Ubuntu*](https://snapcraft.io/vice-jz)
 
 ## Installing
 ```bash
 tar -xvf vasm.tar.gz
+cd vasm
 make CPU=6502 SYNTAX=oldstyle
+cd ..
 chmod +x run.sh
+
 ```
 
 
