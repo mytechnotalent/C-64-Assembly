@@ -12,17 +12,23 @@ tar -xvf vasm.tar.gz
 cd vasm
 make CPU=6502 SYNTAX=oldstyle
 cd ..
+hdiutil attach vice-sdl2-3.4-r37694.dmg
+cp -av /Volumes/vice-sdl2-3.4-r37694/vice-sdl2-3.4-r37694/ .
 chmod +x run.sh
 
 ```
 
-
-## Running
-
+## Running VICE
+*OSX*
 ```bash
-python pi_zork_server.py
-python pi_zork_client.py
+./x64sc.app/Contents/MacOS/x64sc
 ```
+*Ubuntu*
+```bash
+Commodore 64 [CLICK FOUR DOTS -> Show Applications]
+```
+* Within VICE if you are on OSX use F10 to get a menu structure.  The Ubuntu structure will mimic much of the Windows VICE emulator.  In either case you need to Automount your file within the ./BldC64/Lesson1.prg directory to run your program within the emulator.
+
 
 ## Contributing
 
