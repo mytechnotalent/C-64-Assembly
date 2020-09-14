@@ -1,4 +1,4 @@
-# C64 Assembly
+# C-64 Assembly
 A 6502-based Commodore 64 assembly language repo for OSX and Ubuntu.  This is a very small and targeted OSX and Ubuntu port based on the original work of Chibi Akumas as the sole purpose of this small repo is to help you port Chibi's work to OSX or Ubuntu and nothing more.  For more detailed 6502 tutorials please visit https://www.assemblytutorial.com to get your started.
 
 ## Download
